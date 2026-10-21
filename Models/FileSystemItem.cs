@@ -17,16 +17,56 @@ public enum ItemCategory
 
 public class FileSystemItem : INotifyPropertyChanged
 {
+    private string _name = string.Empty;
+    private string _fullPath = string.Empty;
+    private string _extension = string.Empty;
     private bool _isSelected;
     private long _size = -1;
     private double _sizeRatio;
     private bool _isCalculatingSize;
     private int _fileCount;
 
-    public string Name { get; set; } = string.Empty;
-    public string FullPath { get; set; } = string.Empty;
-    public string ParentPath => Path.GetDirectoryName(FullPath) ?? string.Empty;
-    public string Extension { get; set; } = string.Empty;
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (_name != value)
+            {
+                _name = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string FullPath
+    {
+        get => _fullPath;
+        set
+        {
+            if (_fullPath != value)
+            {
+                _fullPath = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ParentPath));
+            }
+        }
+    }
+
+    public string ParentPath => Path.GetDirectoryName(_fullPath) ?? string.Empty;
+
+    public string Extension
+    {
+        get => _extension;
+        set
+        {
+            if (_extension != value)
+            {
+                _extension = value;
+                OnPropertyChanged();
+            }
+        }
+    }
     public bool IsDirectory { get; set; }
     public DateTime ModifiedDate { get; set; }
     public FileAttributes Attributes { get; set; }

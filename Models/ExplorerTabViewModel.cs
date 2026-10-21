@@ -74,6 +74,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
 
     public static List<SizeThresholdOption> ThresholdOptions { get; } =
     [
+        new() { Label = "1 MB 以上", Bytes = 1L * 1024 * 1024 },
         new() { Label = "10 MB 以上", Bytes = 10L * 1024 * 1024 },
         new() { Label = "50 MB 以上", Bytes = 50L * 1024 * 1024 },
         new() { Label = "100 MB 以上 (推奨)", Bytes = 100L * 1024 * 1024 },
@@ -206,13 +207,23 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             if (_minSizeThresholdBytes != value)
             {
                 _minSizeThresholdBytes = value;
-                _cachedDuplicates = null;
+                ClearCachedDuplicates();
                 OnPropertyChanged();
                 if (IsScannerTab)
                 {
                     _ = HandleScanFilterChangeAsync();
                 }
             }
+        }
+    }
+
+    private void ClearCachedDuplicates()
+    {
+        if (_cachedDuplicates is not null)
+        {
+            foreach (var dup in _cachedDuplicates)
+                dup.PropertyChanged -= OnItemPropertyChanged;
+            _cachedDuplicates = null;
         }
     }
 
@@ -568,7 +579,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
         var ct = cts.Token;
 
         IsBusy = true;
-        _cachedDuplicates = null;
+        ClearCachedDuplicates();
         DisplayedItems.Clear();
         NotifySelectionChanged();
 
@@ -580,7 +591,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            const long baseCollectThreshold = 10L * 1024 * 1024;
+            long baseCollectThreshold = Math.Min(10L * 1024 * 1024, _minSizeThresholdBytes);
             var result = await _scannerService.ScanLargeItemsAsync(scanPath, baseCollectThreshold, progress, ct);
 
             if (_lastScanResult is not null)

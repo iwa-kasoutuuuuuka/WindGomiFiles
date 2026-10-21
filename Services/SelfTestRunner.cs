@@ -1,5 +1,7 @@
 using System.IO;
+using System.Text;
 using WinGomiExplorer.Models;
+using WinGomiExplorer.Views;
 
 namespace WinGomiExplorer.Services;
 
@@ -123,6 +125,33 @@ public static class SelfTestRunner
                     Assert(File.Exists(fileLocked), "In-use locked file safely skipped without aborting sibling deletion");
                     Assert(delReport.FreedBytes == 71680, $"FreedBytes accurately reported 71,680 bytes (Actual={delReport.FreedBytes})");
                 }
+
+                // 5. FileSystemItem プロパティ変更通知検証 (BatchRename 後の UI 即時反映保証)
+                var renameTarget = new FileSystemItem { Name = "old.txt", FullPath = @"C:\Temp\old.txt", Extension = ".txt" };
+                var changedProps = new List<string>();
+                renameTarget.PropertyChanged += (_, ev) => { if (ev.PropertyName is not null) changedProps.Add(ev.PropertyName); };
+                renameTarget.Name = "new.log";
+                renameTarget.FullPath = @"C:\Temp\new.log";
+                renameTarget.Extension = ".log";
+                Assert(changedProps.Contains(nameof(FileSystemItem.Name)) &&
+                       changedProps.Contains(nameof(FileSystemItem.FullPath)) &&
+                       changedProps.Contains(nameof(FileSystemItem.ParentPath)) &&
+                       changedProps.Contains(nameof(FileSystemItem.Extension)),
+                       "FileSystemItem fires PropertyChanged for Name, FullPath, ParentPath, and Extension on rename");
+
+                // 6. QuickPreviewWindow エンコーディング自動判定検証 (UTF-8 / Shift-JIS / UTF-16 LE BOM)
+                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+                byte[] utf8Bytes = Encoding.UTF8.GetBytes("テスト UTF-8 ログ出力");
+                var (utf8Text, utf8Enc) = QuickPreviewWindow.DecodeTextBufferSmart(utf8Bytes, utf8Bytes.Length);
+                Assert(utf8Text == "テスト UTF-8 ログ出力" && utf8Enc == "UTF-8", $"Smart decode UTF-8 succeeded ({utf8Enc})");
+
+                byte[] sjisBytes = Encoding.GetEncoding(932).GetBytes("シフトJISの日本語ログファイル");
+                var (sjisText, sjisEnc) = QuickPreviewWindow.DecodeTextBufferSmart(sjisBytes, sjisBytes.Length);
+                Assert(sjisText == "シフトJISの日本語ログファイル" && sjisEnc == "Shift-JIS (CP932)", $"Smart decode Shift-JIS fallback succeeded ({sjisEnc})");
+
+                byte[] utf16Bom = [0xFF, 0xFE, .. Encoding.Unicode.GetBytes("UTF-16 レジストリ出力")];
+                var (utf16Text, utf16Enc) = QuickPreviewWindow.DecodeTextBufferSmart(utf16Bom, utf16Bom.Length);
+                Assert(utf16Text == "UTF-16 レジストリ出力" && utf16Enc == "UTF-16 LE", $"Smart decode UTF-16 LE BOM succeeded ({utf16Enc})");
             }
             finally
             {

@@ -416,6 +416,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (renameWin.ShowDialog() == true)
         {
+            _scannerService.InvalidatePathAndAncestors(ActiveTab.CurrentPath);
             ActiveTab.RefreshDisplayedItems();
             ActiveTab.StatusText = $"✅ {renameWin.RenamedCount:N0} 件の項目を一括リネームしました。";
         }
@@ -555,6 +556,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
                     if (item.IsDirectory)
                     {
+                        string srcPrefix = item.FullPath.TrimEnd('\\') + "\\";
+                        if (destPath.StartsWith(srcPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            errors.Add($"[無限再帰防止] {item.Name}: 親フォルダを自身のサブフォルダ内へ{actionName}することはできません。");
+                            continue;
+                        }
+
                         if (isMove)
                             Directory.Move(item.FullPath, destPath);
                         else

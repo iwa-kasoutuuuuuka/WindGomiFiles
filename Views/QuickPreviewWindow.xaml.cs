@@ -140,6 +140,11 @@ public partial class QuickPreviewWindow : Window
         }
     }
 
+    static QuickPreviewWindow()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     private static bool IsLikelyTextFile(string filePath)
     {
         try
@@ -150,6 +155,11 @@ public partial class QuickPreviewWindow : Window
 
             byte[] buf = new byte[len];
             int read = fs.Read(buf, 0, len);
+
+            // UTF-16 LE / BE BOM チェック
+            if (read >= 2 && ((buf[0] == 0xFF && buf[1] == 0xFE) || (buf[0] == 0xFE && buf[1] == 0xFF)))
+                return true;
+
             int nullCount = 0;
             for (int i = 0; i < read; i++)
             {
@@ -171,14 +181,52 @@ public partial class QuickPreviewWindow : Window
         byte[] buffer = new byte[toRead];
         int bytesRead = fs.Read(buffer, 0, toRead);
 
-        string content = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+        var (content, encodingName) = DecodeTextBufferSmart(buffer, bytesRead);
         if (fs.Length > maxBytes)
         {
             content += $"\n\n... [以降省略: 全 {FileSystemItem.FormatBytes(fs.Length)} のうち先頭 128 KB を高速プレビュー表示中] ...";
         }
 
         PreviewTextBox.Text = content;
-        PreviewModeHintText.Text = "モード: テキスト/ログ高速ストリームプレビュー (最大 128 KB)  |  Space / Esc で閉じる";
+        PreviewModeHintText.Text = $"モード: テキスト/ログ高速プレビュー ({encodingName}, 最大 128 KB)  |  Space / Esc で閉じる";
+    }
+
+    internal static (string Text, string EncodingName) DecodeTextBufferSmart(byte[] buffer, int length)
+    {
+        if (length == 0) return ("(空のファイル)", "UTF-8");
+
+        // 1. BOM 判定
+        if (length >= 3 && buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
+        {
+            return (Encoding.UTF8.GetString(buffer, 3, length - 3), "UTF-8 (BOM)");
+        }
+        if (length >= 2 && buffer[0] == 0xFF && buffer[1] == 0xFE)
+        {
+            return (Encoding.Unicode.GetString(buffer, 2, length - 2), "UTF-16 LE");
+        }
+        if (length >= 2 && buffer[0] == 0xFE && buffer[1] == 0xFF)
+        {
+            return (Encoding.BigEndianUnicode.GetString(buffer, 2, length - 2), "UTF-16 BE");
+        }
+
+        // 2. 厳密な UTF-8 としてデコードを試行し、不正バイトがあれば Shift-JIS (CP932) にフォールバック
+        try
+        {
+            var strictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+            return (strictUtf8.GetString(buffer, 0, length), "UTF-8");
+        }
+        catch
+        {
+            try
+            {
+                var sjis = Encoding.GetEncoding(932);
+                return (sjis.GetString(buffer, 0, length), "Shift-JIS (CP932)");
+            }
+            catch
+            {
+                return (Encoding.UTF8.GetString(buffer, 0, length), "UTF-8 (Fallback)");
+            }
+        }
     }
 
     private void RenderBinaryHexPreview(string filePath)

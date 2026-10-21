@@ -97,9 +97,15 @@ public partial class BatchRenameWindow : Window
             else if (!string.Equals(candidateName, item.Name, StringComparison.Ordinal))
             {
                 string targetFullPath = Path.Combine(item.ParentPath, candidateName);
+                bool isCaseOnlyChange = string.Equals(targetFullPath, item.FullPath, StringComparison.OrdinalIgnoreCase);
+
                 if (!usedTargetPaths.Add(targetFullPath))
                 {
-                    status = "⚠️ 名前が重複しています";
+                    status = "⚠️ リスト内で名前が重複しています";
+                }
+                else if (!isCaseOnlyChange && (File.Exists(targetFullPath) || Directory.Exists(targetFullPath)))
+                {
+                    status = "⚠️ 既存ファイルと名前が衝突しています";
                 }
                 else
                 {

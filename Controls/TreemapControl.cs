@@ -196,9 +196,9 @@ public class TreemapControl : FrameworkElement
         }
     }
 
-    private static void DrawEmptyMessage(DrawingContext dc, Rect bounds, string message)
+    private void DrawEmptyMessage(DrawingContext dc, Rect bounds, string message)
     {
-        double dpi = 1.0;
+        double dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var ft = new FormattedText(
             message,
             CultureInfo.CurrentUICulture,
