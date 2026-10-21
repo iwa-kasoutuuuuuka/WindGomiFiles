@@ -1,0 +1,90 @@
+<Window x:Class="WinGomiExplorer.Views.DeleteConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="完全削除の確認 - WinGomiExplorer"
+        Width="740" Height="500"
+        WindowStartupLocation="CenterOwner"
+        Icon="pack://application:,,,/Assets/app_icon.ico"
+        Background="#0F172A"
+        Foreground="#F8FAFC"
+        ResizeMode="CanResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ヘッダー警告 -->
+        <Border Grid.Row="0" Background="#3B1219" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="8" Padding="14">
+            <StackPanel>
+                <TextBlock Text="⚠️ 選択したファイル・フォルダを「完全削除」しますか？"
+                           FontSize="16" FontWeight="Bold" Foreground="#FCA5A5"/>
+                <TextBlock Text="ゴミ箱を経由せず直接ディスクから削除し、空き容量を即座に回復します。削除したデータは元に戻せません。"
+                           FontSize="12.5" Foreground="#E2E8F0" Margin="0,6,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- サマリー -->
+        <Border Grid.Row="1" Background="#1E293B" CornerRadius="6" Padding="12,10" Margin="0,12,0,12">
+            <DockPanel>
+                <TextBlock x:Name="SummaryText"
+                           Text="削除対象: 0 件"
+                           FontSize="14" FontWeight="SemiBold" Foreground="#38BDF8"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="🛡️ システム保護領域は自動的に除外されます"
+                           FontSize="12" Foreground="#94A3B8"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <!-- 削除対象リスト -->
+        <DataGrid Grid.Row="2"
+                  x:Name="TargetGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#334155"
+                  Background="#1E293B"
+                  RowBackground="#1E293B"
+                  AlternatingRowBackground="#172033"
+                  Foreground="#F1F5F9"
+                  BorderBrush="#334155"
+                  BorderThickness="1">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#0F172A"/>
+                    <Setter Property="Foreground" Value="#94A3B8"/>
+                    <Setter Property="Padding" Value="10,7"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="BorderBrush" Value="#334155"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="種別" Binding="{Binding IconSymbol}" Width="50"/>
+                <DataGridTextColumn Header="名前" Binding="{Binding Name}" Width="190"/>
+                <DataGridTextColumn Header="サイズ" Binding="{Binding SizeDisplay}" Width="110"/>
+                <DataGridTextColumn Header="判定" Binding="{Binding CategoryLabel}" Width="125"/>
+                <DataGridTextColumn Header="フルパス" Binding="{Binding FullPath}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- ボタン領域 -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="キャンセル"
+                    Width="120" Height="36" Margin="0,0,12,0"
+                    Background="#334155" Foreground="#F8FAFC" BorderThickness="0"
+                    FontSize="13" Cursor="Hand"
+                    Click="CancelButton_Click"/>
+            <Button Content="🔥 完全削除を実行する"
+                    Width="190" Height="36"
+                    Background="#DC2626" Foreground="White" BorderThickness="0"
+                    FontSize="13" FontWeight="Bold" Cursor="Hand"
+                    Click="ConfirmButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
