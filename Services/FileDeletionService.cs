@@ -14,6 +14,9 @@ public class DeletionReport
 
 public static class FileDeletionService
 {
+    private const FileAttributes RestrictiveAttributes =
+        FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System;
+
     /// <summary>
     /// 指定されたアイテム群を直接「完全削除」します。
     /// システム保護領域は自動的にブロックし、フォルダ内に一部ロック中ファイルがあっても
@@ -27,7 +30,12 @@ public static class FileDeletionService
         {
             var report = new DeletionReport();
 
-            foreach (var item in items)
+            // パスの浅い順（親ディレクトリ優先）に並べて重複削除試行を防ぐ
+            var orderedItems = items
+                .OrderBy(i => i.FullPath.Length)
+                .ToList();
+
+            foreach (var item in orderedItems)
             {
                 if (item.IsSystemProtected || SystemProtectionService.IsSystemProtectedPath(item.FullPath, item.IsDirectory))
                 {
@@ -83,10 +91,7 @@ public static class FileDeletionService
                         {
                             var fi = new FileInfo(item.FullPath);
                             fileLen = fi.Length;
-                            if ((fi.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System)) != 0)
-                            {
-                                fi.Attributes = FileAttributes.Normal;
-                            }
+                            ClearRestrictiveAttributes(fi);
                         }
                         catch
                         {
@@ -121,6 +126,11 @@ public static class FileDeletionService
         string? lastError = null;
         bool hasRemainingEntries = false;
 
+        if (SystemProtectionService.IsSystemProtectedPath(dirPath, isDirectory: true))
+        {
+            return (0, 0, false, "システム保護対象のためスキップされました");
+        }
+
         try
         {
             var dirInfo = new DirectoryInfo(dirPath);
@@ -130,10 +140,7 @@ public static class FileDeletionService
             // ジャンクション・シンボリックリンクの場合はリンク先の中身を消さずリンク自体のみ削除
             if ((dirInfo.Attributes & FileAttributes.ReparsePoint) != 0)
             {
-                if ((dirInfo.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System)) != 0)
-                {
-                    dirInfo.Attributes = FileAttributes.Normal;
-                }
+                ClearRestrictiveAttributes(dirInfo);
                 dirInfo.Delete(false);
                 return (0, 0, true, null);
             }
@@ -151,13 +158,17 @@ public static class FileDeletionService
 
             foreach (var file in files)
             {
+                if (SystemProtectionService.IsSystemProtectedPath(file.FullName, isDirectory: false))
+                {
+                    hasRemainingEntries = true;
+                    lastError = $"保護ファイル ({file.Name}) をスキップ";
+                    continue;
+                }
+
                 try
                 {
                     long len = file.Length;
-                    if ((file.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System)) != 0)
-                    {
-                        file.Attributes = FileAttributes.Normal;
-                    }
+                    ClearRestrictiveAttributes(file);
                     file.Delete();
                     freedBytes += len;
                     deletedFiles++;
@@ -196,10 +207,7 @@ public static class FileDeletionService
             // 3. 中身がすべて消えたらディレクトリ自体を削除
             if (!hasRemainingEntries)
             {
-                if ((dirInfo.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System)) != 0)
-                {
-                    dirInfo.Attributes = FileAttributes.Normal;
-                }
+                ClearRestrictiveAttributes(dirInfo);
                 dirInfo.Delete(false);
                 return (freedBytes, deletedFiles, true, null);
             }
@@ -211,5 +219,19 @@ public static class FileDeletionService
         }
 
         return (freedBytes, deletedFiles, !hasRemainingEntries, lastError);
+    }
+
+    private static void ClearRestrictiveAttributes(FileSystemInfo fsi)
+    {
+        var attrs = fsi.Attributes;
+        if ((attrs & RestrictiveAttributes) != 0)
+        {
+            var newAttrs = attrs & ~RestrictiveAttributes;
+            if (newAttrs == 0)
+            {
+                newAttrs = FileAttributes.Normal;
+            }
+            fsi.Attributes = newAttrs;
+        }
     }
 }

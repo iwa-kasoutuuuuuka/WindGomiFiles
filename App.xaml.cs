@@ -20,6 +20,14 @@ public partial class App : Application
 
         // 3. AppDomain レベルの致命的例外捕捉
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+
+        // --self-test 引数が指定された場合は自動検証スイートを実行して終了
+        if (e.Args.Any(a => a.Equals("--self-test", StringComparison.OrdinalIgnoreCase)))
+        {
+            int code = Task.Run(() => SelfTestRunner.RunAllTests()).GetAwaiter().GetResult();
+            Environment.Exit(code);
+            return;
+        }
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

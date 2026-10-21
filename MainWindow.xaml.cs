@@ -518,10 +518,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await ConfirmAndDeleteItemsAsync(selectedRows);
     }
 
+    private static readonly HashSet<string> ExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".msi", ".msix", ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".scr", ".com", ".reg", ".hta"
+    };
+
     private static void TryOpenFileWithDefaultApp(string filePath)
     {
         try
         {
+            string ext = Path.GetExtension(filePath);
+            if (ExecutableExtensions.Contains(ext))
+            {
+                var confirm = MessageBox.Show(
+                    $"このファイルは実行可能プログラムまたはスクリプト ({ext}) です。\n実行しますか？\n\n対象: {filePath}",
+                    "実行の確認 (セキュリティガード)",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning,
+                    MessageBoxResult.No);
+
+                if (confirm != MessageBoxResult.Yes)
+                    return;
+            }
+
             Process.Start(new ProcessStartInfo
             {
                 FileName = filePath,
@@ -532,6 +551,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             MessageBox.Show($"ファイルを開けませんでした:\n{ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        foreach (var tab in Tabs)
+        {
+            tab.Dispose();
+        }
+        base.OnClosed(e);
     }
 
     // ==================== 一括選択 & 完全削除機能 ====================

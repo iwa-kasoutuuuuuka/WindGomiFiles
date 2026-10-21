@@ -340,8 +340,22 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             _scannerService.InvalidatePathAndAncestors(targetPath);
         }
 
-        var items = await Task.Run(() => _scannerService.GetDirectoryItems(targetPath), ct);
+        List<FileSystemItem> items;
+        try
+        {
+            items = await Task.Run(() => _scannerService.GetDirectoryItems(targetPath), ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         if (ct.IsCancellationRequested) return;
+
+        foreach (var oldItem in _rawDirectoryItems)
+        {
+            oldItem.PropertyChanged -= OnItemPropertyChanged;
+        }
 
         foreach (var item in items)
         {
@@ -387,7 +401,10 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
 
                     int done = Interlocked.Increment(ref completedFolders);
 
-                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    var dispatcher = Application.Current?.Dispatcher;
+                    if (dispatcher is null) return;
+
+                    await dispatcher.InvokeAsync(() =>
                     {
                         if (token.IsCancellationRequested) return;
                         folderItem.Size = fSize;
@@ -502,6 +519,14 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             // ベースとして 10MB 以上のアイテムをすべて収集しておく（フィルタ切替を瞬時に行うため）
             const long baseCollectThreshold = 10L * 1024 * 1024;
             var result = await _scannerService.ScanLargeItemsAsync(scanPath, baseCollectThreshold, progress, ct);
+
+            if (_lastScanResult is not null)
+            {
+                foreach (var oldFile in _lastScanResult.LargeFiles)
+                    oldFile.PropertyChanged -= OnItemPropertyChanged;
+                foreach (var oldFolder in _lastScanResult.LargeFolders)
+                    oldFolder.PropertyChanged -= OnItemPropertyChanged;
+            }
 
             foreach (var item in result.LargeFiles)
                 item.PropertyChanged += OnItemPropertyChanged;
@@ -655,6 +680,8 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             ("Category", false) => items.OrderBy(i => i.CategoryLabel).ThenByDescending(i => i.SortableSize),
             ("Attributes", true) => items.OrderByDescending(i => i.AttributesDisplay).ThenByDescending(i => i.SortableSize),
             ("Attributes", false) => items.OrderBy(i => i.AttributesDisplay).ThenByDescending(i => i.SortableSize),
+            ("FullPath", true) => items.OrderByDescending(i => i.FullPath, StringComparer.OrdinalIgnoreCase),
+            ("FullPath", false) => items.OrderBy(i => i.FullPath, StringComparer.OrdinalIgnoreCase),
             _ => items.OrderByDescending(i => i.SortableSize)
         };
     }
@@ -673,6 +700,10 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             ("ModifiedDate", false) => items.ThenBy(i => i.ModifiedDate),
             ("Category", true) => items.ThenByDescending(i => i.CategoryLabel).ThenByDescending(i => i.SortableSize),
             ("Category", false) => items.ThenBy(i => i.CategoryLabel).ThenByDescending(i => i.SortableSize),
+            ("Attributes", true) => items.ThenByDescending(i => i.AttributesDisplay).ThenByDescending(i => i.SortableSize),
+            ("Attributes", false) => items.ThenBy(i => i.AttributesDisplay).ThenByDescending(i => i.SortableSize),
+            ("FullPath", true) => items.ThenByDescending(i => i.FullPath, StringComparer.OrdinalIgnoreCase),
+            ("FullPath", false) => items.ThenBy(i => i.FullPath, StringComparer.OrdinalIgnoreCase),
             _ => items.ThenByDescending(i => i.SortableSize)
         };
     }
@@ -717,15 +748,46 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
 
     public void RemoveDeletedItemsFromView(IEnumerable<FileSystemItem> deletedItems)
     {
-        var deletedSet = new HashSet<string>(
-            deletedItems.Select(i => i.FullPath),
+        var deletedList = deletedItems.ToList();
+        if (deletedList.Count == 0) return;
+
+        var deletedExactSet = new HashSet<string>(
+            deletedList.Select(i => i.FullPath.TrimEnd('\\')),
             StringComparer.OrdinalIgnoreCase);
 
-        _rawDirectoryItems.RemoveAll(i => deletedSet.Contains(i.FullPath));
+        var deletedDirPrefixes = deletedList
+            .Where(i => i.IsDirectory)
+            .Select(i => i.FullPath.TrimEnd('\\') + "\\")
+            .ToList();
+
+        bool ShouldRemove(FileSystemItem candidate)
+        {
+            string norm = candidate.FullPath.TrimEnd('\\');
+            if (deletedExactSet.Contains(norm))
+                return true;
+
+            foreach (var prefix in deletedDirPrefixes)
+            {
+                if (norm.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        foreach (var item in _rawDirectoryItems.Where(ShouldRemove))
+            item.PropertyChanged -= OnItemPropertyChanged;
+
+        _rawDirectoryItems.RemoveAll(ShouldRemove);
+
         if (_lastScanResult is not null)
         {
-            _lastScanResult.LargeFiles.RemoveAll(i => deletedSet.Contains(i.FullPath));
-            _lastScanResult.LargeFolders.RemoveAll(i => deletedSet.Contains(i.FullPath));
+            foreach (var item in _lastScanResult.LargeFiles.Where(ShouldRemove))
+                item.PropertyChanged -= OnItemPropertyChanged;
+            foreach (var item in _lastScanResult.LargeFolders.Where(ShouldRemove))
+                item.PropertyChanged -= OnItemPropertyChanged;
+
+            _lastScanResult.LargeFiles.RemoveAll(ShouldRemove);
+            _lastScanResult.LargeFolders.RemoveAll(ShouldRemove);
         }
 
         RefreshDisplayedItems();
@@ -742,6 +804,15 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         CancelCurrentWork();
+        foreach (var item in _rawDirectoryItems)
+            item.PropertyChanged -= OnItemPropertyChanged;
+        if (_lastScanResult is not null)
+        {
+            foreach (var f in _lastScanResult.LargeFiles)
+                f.PropertyChanged -= OnItemPropertyChanged;
+            foreach (var d in _lastScanResult.LargeFolders)
+                d.PropertyChanged -= OnItemPropertyChanged;
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

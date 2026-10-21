@@ -453,7 +453,7 @@ public class DiskScannerService
         }
 
         DiagnosticsService.LogInfo("DiskScanner", $"Starting large scan on '{rootPath}' (BaseThreshold={baseThresholdBytes} bytes)");
-        await Task.Run(() => ScanDirectoryRecursive(rootPath, 0), CancellationToken.None);
+        await Task.Run(() => ScanDirectoryRecursive(rootPath, 0), CancellationToken.None).ConfigureAwait(false);
 
         sw.Stop();
         MaybeReportProgress(force: true);
