@@ -1,0 +1,103 @@
+<Window x:Class="WinGomiExplorer.Views.BatchRenameWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="✏️ 高度な一括リネーム (Batch Rename) - WinGomiExplorer"
+        Width="820" Height="560"
+        WindowStartupLocation="CenterOwner"
+        Icon="pack://application:,,,/Assets/app_icon.ico"
+        Background="#0B1120"
+        Foreground="#F8FAFC">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="✏️ 選択した項目の一括リネーム" FontSize="16" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,0,12"/>
+
+        <!-- ルール設定パネル -->
+        <Border Grid.Row="1" Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="110"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 1行目: 検索と置換 -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="検索文字列:" VerticalAlignment="Center" Foreground="#CBD5E1" Margin="0,0,0,8"/>
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="FindTextBox" Background="#0F172A" Foreground="White" BorderBrush="#475569" Padding="6,4" Margin="0,0,16,8" TextChanged="RuleInput_Changed"/>
+
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="置換後文字列:" VerticalAlignment="Center" Foreground="#CBD5E1" Margin="0,0,0,8"/>
+                <TextBox Grid.Row="0" Grid.Column="3" x:Name="ReplaceTextBox" Background="#0F172A" Foreground="White" BorderBrush="#475569" Padding="6,4" Margin="0,0,0,8" TextChanged="RuleInput_Changed"/>
+
+                <!-- 2行目: 接頭辞・接尾辞 -->
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="接頭辞 (Prefix):" VerticalAlignment="Center" Foreground="#CBD5E1" Margin="0,0,0,8"/>
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="PrefixTextBox" Background="#0F172A" Foreground="White" BorderBrush="#475569" Padding="6,4" Margin="0,0,16,8" TextChanged="RuleInput_Changed"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="接尾辞 (Suffix):" VerticalAlignment="Center" Foreground="#CBD5E1" Margin="0,0,0,8"/>
+                <TextBox Grid.Row="1" Grid.Column="3" x:Name="SuffixTextBox" Background="#0F172A" Foreground="White" BorderBrush="#475569" Padding="6,4" Margin="0,0,0,8" TextChanged="RuleInput_Changed"/>
+
+                <!-- 3行目: オプション (正規表現 / 連番 / 日付) -->
+                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,4,0,0">
+                    <CheckBox x:Name="UseRegexCheckBox" Content="正規表現 (Regex) を使用" Foreground="#E2E8F0" VerticalAlignment="Center" Margin="0,0,20,0" Checked="RuleInput_Changed" Unchecked="RuleInput_Changed"/>
+                    <CheckBox x:Name="AddDatePrefixCheckBox" Content="更新日付 (yyyyMMdd_) を先頭に付与" Foreground="#E2E8F0" VerticalAlignment="Center" Margin="0,0,20,0" Checked="RuleInput_Changed" Unchecked="RuleInput_Changed"/>
+                    <CheckBox x:Name="AddNumberingCheckBox" Content="連番 (_001, _002...) を末尾に付与" Foreground="#E2E8F0" VerticalAlignment="Center" Margin="0,0,10,0" Checked="RuleInput_Changed" Unchecked="RuleInput_Changed"/>
+                    <TextBlock Text="開始番号:" VerticalAlignment="Center" Foreground="#94A3B8" Margin="4,0,6,0"/>
+                    <TextBox x:Name="StartNumberTextBox" Text="1" Width="50" Background="#0F172A" Foreground="White" BorderBrush="#475569" Padding="4,2" TextChanged="RuleInput_Changed"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- リアルタイムプレビュー一覧 -->
+        <DataGrid Grid.Row="2"
+                  x:Name="PreviewGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  HeadersVisibility="Column"
+                  Background="#0F172A"
+                  RowBackground="#0F172A"
+                  AlternatingRowBackground="#162032"
+                  Foreground="#F8FAFC"
+                  BorderBrush="#334155"
+                  BorderThickness="1"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#1E293B">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#1E293B"/>
+                    <Setter Property="Foreground" Value="#94A3B8"/>
+                    <Setter Property="Padding" Value="10,6"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="現在の名前" Binding="{Binding OriginalName}" Width="260"/>
+                <DataGridTextColumn Header="➡ 変更後の名前 (プレビュー)" Binding="{Binding NewName}" Width="280"/>
+                <DataGridTextColumn Header="状態" Binding="{Binding StatusText}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- フッターボタン -->
+        <DockPanel Grid.Row="3" Margin="0,14,0,0">
+            <TextBlock x:Name="SummaryText" Text="対象: 0 件" VerticalAlignment="Center" Foreground="#94A3B8"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="キャンセル" Width="110" Height="34" Margin="0,0,10,0"
+                        Background="#334155" Foreground="White" BorderThickness="0" Cursor="Hand"
+                        Click="CancelButton_Click"/>
+                <Button Content="✅ 一括リネームを実行" Width="170" Height="34"
+                        Background="#0284C7" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"
+                        Click="ExecuteRenameButton_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

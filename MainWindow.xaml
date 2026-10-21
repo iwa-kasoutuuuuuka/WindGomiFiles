@@ -4,10 +4,11 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:conv="clr-namespace:WinGomiExplorer.Converters"
+        xmlns:ctrl="clr-namespace:WinGomiExplorer.Controls"
         mc:Ignorable="d"
         Title="WinGomiExplorer - 容量ソート対応タブ型ファイルエクスプローラー &amp; 大容量ゴミファイルスキャナー"
-        Width="1380" Height="860"
-        MinWidth="1020" MinHeight="640"
+        Width="1460" Height="900"
+        MinWidth="1060" MinHeight="660"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/app_icon.ico"
         Background="#0B1120"
@@ -28,7 +29,7 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,5"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -66,6 +67,18 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="PurpleAccentButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#6D28D9"/>
+            <Setter Property="BorderBrush" Value="#A855F7"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#5B21B6"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
             <Setter Property="Background" Value="#DC2626"/>
             <Setter Property="BorderBrush" Value="#F87171"/>
@@ -86,11 +99,11 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ==================== 上部：ドライブ容量モニター＆クイックスキャンバー ==================== -->
-        <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="14,10">
+        <!-- ==================== 上部：ドライブ容量モニター＆統合ツールバー ==================== -->
+        <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="14,9">
             <DockPanel>
-                <!-- アプリタイトル・特徴バッジ -->
-                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                <!-- アプリタイトル・アイコン -->
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                     <Image Source="pack://application:,,,/Assets/app_icon.png"
                            Width="38" Height="38"
                            Margin="0,0,10,0"
@@ -98,26 +111,45 @@
                            RenderOptions.BitmapScalingMode="HighQuality"/>
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="WinGomiExplorer" FontSize="17" FontWeight="Bold" Foreground="#38BDF8"/>
+                            <TextBlock Text="WinGomiExplorer" FontSize="16.5" FontWeight="Bold" Foreground="#38BDF8"/>
                             <Border Background="#1E3A8A" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="Win11 容量順ソート &amp; ゴミ抽出" FontSize="10.5" Foreground="#93C5FD" FontWeight="SemiBold"/>
+                                <TextBlock Text="Pro Edition" FontSize="10" Foreground="#93C5FD" FontWeight="SemiBold"/>
                             </Border>
                         </StackPanel>
-                        <TextBlock Text="拡張子・隠しファイル(H)・システム保護(S) 常時全表示" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                        <TextBlock Text="容量ソート・ツリーマップ・重複検出・2画面分割" FontSize="10.5" Foreground="#94A3B8" Margin="0,2,0,0"/>
                     </StackPanel>
                 </StackPanel>
 
-                <!-- 右側アクションボタン -->
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                <!-- 右側アクションボタン群 -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                     <Button Style="{StaticResource AccentButton}"
-                            Content="🔍 Cドライブ大容量・ゴミ抽出スキャン"
-                            Padding="12,7"
+                            Content="🔍 Cドライブ大容量スキャン"
+                            Padding="10,6" Margin="0,0,6,0"
                             Click="ScanCDriveButton_Click"/>
+
+                    <Button Style="{StaticResource PurpleAccentButton}"
+                            Content="🧰 スマートクリーン &amp; 開発キャッシュ診断"
+                            Padding="10,6" Margin="0,0,6,0"
+                            Click="OpenSmartCleanerButton_Click"
+                            ToolTip="npm/pip/cargo/NuGet/Dockerキャッシュ、空フォルダ、WinSxS残骸を一括診断"/>
+
                     <Button Style="{StaticResource ModernButton}"
-                            Content="🔄 ドライブ更新"
-                            Margin="8,0,0,0"
-                            Padding="10,7"
-                            Click="RefreshDrivesButton_Click"/>
+                            Content="📊 ツリーマップ切替"
+                            Padding="9,6" Margin="0,0,6,0"
+                            Click="ToggleVisualDashboardButton_Click"
+                            ToolTip="ツリーマップ面積グラフ＆拡張子シェア統計パネルの表示/非表示を切り替えます"/>
+
+                    <Button Style="{StaticResource ModernButton}"
+                            Content="🪟 2画面分割 (Dual)"
+                            Padding="9,6" Margin="0,0,6,0"
+                            Click="ToggleDualPaneButton_Click"
+                            ToolTip="左右2画面（デュアルペイン）表示を切り替えます"/>
+
+                    <Button Style="{StaticResource ModernButton}"
+                            Content="🔄"
+                            Padding="8,6"
+                            Click="RefreshDrivesButton_Click"
+                            ToolTip="ドライブ空き容量を更新"/>
                 </StackPanel>
 
                 <!-- ドライブカード一覧 -->
@@ -130,21 +162,21 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1"
-                                    CornerRadius="6" Padding="10,6" Margin="0,0,10,0" Width="265">
+                                    CornerRadius="6" Padding="9,5" Margin="0,0,8,0" Width="245">
                                 <StackPanel>
                                     <DockPanel>
-                                        <TextBlock Text="{Binding DisplayTitle}" FontWeight="Bold" FontSize="12.5" Foreground="#F8FAFC"/>
+                                        <TextBlock Text="{Binding DisplayTitle}" FontWeight="Bold" FontSize="12" Foreground="#F8FAFC"/>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                             <Button Content="開く" Style="{StaticResource ModernButton}"
-                                                    Padding="6,1" FontSize="11" Margin="0,0,4,0"
+                                                    Padding="5,1" FontSize="10.5" Margin="0,0,4,0"
                                                     Tag="{Binding RootPath}" Click="OpenDriveButton_Click"/>
                                             <Button Content="🔍スキャン" Style="{StaticResource AccentButton}"
-                                                    Padding="6,1" FontSize="11"
+                                                    Padding="5,1" FontSize="10.5"
                                                     Tag="{Binding RootPath}" Click="ScanDriveButton_Click"/>
                                         </StackPanel>
                                     </DockPanel>
-                                    <ProgressBar Value="{Binding UsedPercentage, Mode=OneWay}" Maximum="100" Height="6"
-                                                 Margin="0,5,0,4" Background="#0F172A" BorderThickness="0">
+                                    <ProgressBar Value="{Binding UsedPercentage, Mode=OneWay}" Maximum="100" Height="5"
+                                                 Margin="0,4,0,3" Background="#0F172A" BorderThickness="0">
                                         <ProgressBar.Style>
                                             <Style TargetType="ProgressBar">
                                                 <Setter Property="Foreground" Value="#38BDF8"/>
@@ -156,7 +188,7 @@
                                             </Style>
                                         </ProgressBar.Style>
                                     </ProgressBar>
-                                    <TextBlock Text="{Binding UsageSummary}" FontSize="10.5" Foreground="#94A3B8"/>
+                                    <TextBlock Text="{Binding UsageSummary}" FontSize="10" Foreground="#94A3B8"/>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -165,19 +197,28 @@
             </DockPanel>
         </Border>
 
-        <!-- ==================== 中央：左サイドバー ＋ マルチタブ領域 ==================== -->
+        <!-- ==================== 中央：左サイドバー ＋ メインエリア ＋ デュアルペイン ==================== -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="235" MinWidth="180" MaxWidth="360"/>
+                <ColumnDefinition Width="230" MinWidth="170" MaxWidth="340"/>
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition x:Name="DualPaneColumn" Width="0"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 左サイドバー：クイックアクセス & 隠しゴミ溜まりスポット直通 -->
+            <!-- 左サイドバー：クイックアクセス & お気に入りピン留め & 隠しゴミ溜まりスポット -->
             <Border Grid.Column="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,1,0" Padding="8">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="📌 クイックアクセス &amp; 隠し領域"
-                               FontSize="12" FontWeight="Bold" Foreground="#94A3B8" Margin="4,4,4,8"/>
+                    <DockPanel DockPanel.Dock="Top" Margin="2,2,2,8">
+                        <TextBlock Text="📌 クイック &amp; 隠し領域"
+                                   FontSize="12" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <Button Content="⭐＋固定"
+                                Style="{StaticResource ModernButton}"
+                                Padding="6,2" FontSize="10.5" HorizontalAlignment="Right"
+                                Click="AddCurrentFolderBookmarkButton_Click"
+                                ToolTip="現在開いているフォルダを左サイドバーのお気に入りにピン留め追加します"/>
+                    </DockPanel>
 
                     <ListBox x:Name="QuickAccessListBox"
                              Background="Transparent"
@@ -215,8 +256,8 @@
                                 <DockPanel ToolTip="{Binding TargetPath}">
                                     <TextBlock Text="{Binding Icon}" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <StackPanel>
-                                        <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold" Foreground="#F1F5F9" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Text="{Binding Subtitle}" FontSize="10.5" Foreground="#64748B" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="#F1F5F9" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Subtitle}" FontSize="10" Foreground="#64748B" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                 </DockPanel>
                             </DataTemplate>
@@ -226,6 +267,8 @@
                                 <MenuItem Header="📂 現在のタブで開く" Click="QuickAccessOpenCurrentTab_Click"/>
                                 <MenuItem Header="➕ 新しいタブで開く" Click="QuickAccessOpenNewTab_Click"/>
                                 <MenuItem Header="🔍 この場所を大容量スキャン" Click="QuickAccessScan_Click"/>
+                                <Separator/>
+                                <MenuItem Header="🗑️ お気に入りから削除" Click="QuickAccessRemoveBookmark_Click"/>
                             </ContextMenu>
                         </ListBox.ContextMenu>
                     </ListBox>
@@ -234,9 +277,10 @@
 
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#1E293B"/>
 
-            <!-- 右側メイン：タブバー ＋ アクティブタブコンテンツ -->
+            <!-- ==================== メインペイン（マルチタブ ＋ ツリーマップ ＋ DataGrid） ==================== -->
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -248,12 +292,17 @@
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,4">
                             <Button Style="{StaticResource ModernButton}"
-                                    Content="＋ 新規フォルダタブ"
-                                    Padding="9,4" FontSize="12" Margin="0,0,6,0"
+                                    Content="📌 タブ固定"
+                                    Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
+                                    Click="TogglePinActiveTabButton_Click"
+                                    ToolTip="現在のタブをピン留め固定します"/>
+                            <Button Style="{StaticResource ModernButton}"
+                                    Content="＋ 新規タブ (Ctrl+T)"
+                                    Padding="8,4" FontSize="11.5" Margin="0,0,5,0"
                                     Click="NewExplorerTabButton_Click"/>
                             <Button Style="{StaticResource AccentButton}"
-                                    Content="🔍＋ 大容量スキャンタブ"
-                                    Padding="9,4" FontSize="12"
+                                    Content="🔍＋ スキャンタブ"
+                                    Padding="8,4" FontSize="11.5"
                                     Click="NewScannerTabButton_Click"/>
                         </StackPanel>
 
@@ -280,7 +329,7 @@
                                                         BorderBrush="#334155"
                                                         BorderThickness="1,1,1,0"
                                                         CornerRadius="6,6,0,0"
-                                                        Padding="12,6"
+                                                        Padding="11,5"
                                                         Cursor="Hand">
                                                     <ContentPresenter/>
                                                 </Border>
@@ -304,22 +353,22 @@
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" MaxWidth="240">
+                                    <StackPanel Orientation="Horizontal" MaxWidth="230">
                                         <TextBlock Text="{Binding HeaderTitle}"
                                                    Foreground="White"
                                                    FontWeight="SemiBold"
-                                                   FontSize="12.5"
+                                                   FontSize="12"
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="195"
+                                                   MaxWidth="185"
                                                    ToolTip="{Binding CurrentPath}"/>
                                         <Button Content="✕"
-                                                Margin="8,0,0,0"
-                                                Padding="4,0"
+                                                Margin="7,0,0,0"
+                                                Padding="3,0"
                                                 Background="Transparent"
                                                 Foreground="#E2E8F0"
                                                 BorderThickness="0"
-                                                FontSize="11"
+                                                FontSize="10.5"
                                                 Cursor="Hand"
                                                 Tag="{Binding}"
                                                 Click="CloseTabButton_Click"
@@ -331,120 +380,183 @@
                     </DockPanel>
                 </Border>
 
-                <!-- 2. ナビゲーション＆アドレスバー (アクティブタブにバインド) -->
-                <Border Grid.Row="1" Background="#162032" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="10,8"
+                <!-- 2. ナビゲーション＆アドレスバー -->
+                <Border Grid.Row="1" Background="#162032" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="10,7"
                         DataContext="{Binding ActiveTab}">
                     <Grid>
-                        <!-- フォルダ閲覧タブ用ナビゲーション -->
+                        <!-- フォルダ閲覧タブ用 -->
                         <DockPanel Visibility="{Binding IsExplorerTab, Converter={StaticResource BoolToVis}}">
                             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="0,0,8,0">
-                                <Button Style="{StaticResource ModernButton}" Content="⬅" Width="34" Margin="0,0,4,0"
-                                        IsEnabled="{Binding CanGoBack}" Click="BackButton_Click" ToolTip="戻る"/>
-                                <Button Style="{StaticResource ModernButton}" Content="➡" Width="34" Margin="0,0,4,0"
-                                        IsEnabled="{Binding CanGoForward}" Click="ForwardButton_Click" ToolTip="進む"/>
-                                <Button Style="{StaticResource ModernButton}" Content="⬆ 上へ" Padding="8,5" Margin="0,0,4,0"
-                                        IsEnabled="{Binding CanGoUp}" Click="UpButton_Click" ToolTip="上の階層へ"/>
-                                <Button Style="{StaticResource ModernButton}" Content="🔄 容量再計算" Padding="8,5"
-                                        Click="RefreshExplorerButton_Click" ToolTip="最新状態に更新しフォルダ容量を再計算"/>
+                                <Button Style="{StaticResource ModernButton}" Content="⬅" Width="32" Margin="0,0,4,0"
+                                        IsEnabled="{Binding CanGoBack}" Click="BackButton_Click" ToolTip="戻る (Alt+Left)"/>
+                                <Button Style="{StaticResource ModernButton}" Content="➡" Width="32" Margin="0,0,4,0"
+                                        IsEnabled="{Binding CanGoForward}" Click="ForwardButton_Click" ToolTip="進む (Alt+Right)"/>
+                                <Button Style="{StaticResource ModernButton}" Content="⬆ 上へ" Padding="8,4" Margin="0,0,4,0"
+                                        IsEnabled="{Binding CanGoUp}" Click="UpButton_Click" ToolTip="上の階層へ (Alt+Up)"/>
+                                <Button Style="{StaticResource ModernButton}" Content="🔄 再計算" Padding="8,4"
+                                        Click="RefreshExplorerButton_Click" ToolTip="最新状態に更新しフォルダ容量を再計算 (F5)"/>
                             </StackPanel>
 
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
-                                <Button Style="{StaticResource ModernButton}" Content="移動" Padding="12,5" Margin="0,0,6,0"
+                                <Button Style="{StaticResource ModernButton}" Content="移動" Padding="10,4" Margin="0,0,5,0"
                                         Click="NavigateAddressButton_Click"/>
-                                <Button Style="{StaticResource AccentButton}" Content="🔍 このフォルダを大容量スキャン" Padding="12,5"
+                                <Button Style="{StaticResource ModernButton}" Content="👁️ プレビュー (Space)" Padding="9,4" Margin="0,0,5,0"
+                                        Click="QuickPreviewButton_Click"/>
+                                <Button Style="{StaticResource ModernButton}" Content="✏️ 一括リネーム (F2)" Padding="9,4" Margin="0,0,5,0"
+                                        Click="BatchRenameButton_Click"/>
+                                <Button Style="{StaticResource AccentButton}" Content="🔍 この場所をスキャン" Padding="10,4"
                                         Click="ScanCurrentFolderButton_Click"/>
                             </StackPanel>
 
                             <TextBox x:Name="ExplorerAddressTextBox"
                                      Text="{Binding AddressBarText, UpdateSourceTrigger=PropertyChanged}"
                                      Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155"
-                                     Padding="8,5" FontSize="13" VerticalContentAlignment="Center"
+                                     Padding="8,4" FontSize="12.5" VerticalContentAlignment="Center"
                                      KeyDown="ExplorerAddressTextBox_KeyDown"/>
                         </DockPanel>
 
-                        <!-- 大容量・ゴミファイルスキャンタブ用ナビゲーション -->
+                        <!-- 大容量・ゴミファイルスキャンタブ用 -->
                         <DockPanel Visibility="{Binding IsScannerTab, Converter={StaticResource BoolToVis}}">
                             <TextBlock DockPanel.Dock="Left" Text="🎯 スキャン対象パス:" VerticalAlignment="Center"
                                        FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,8,0"/>
 
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
-                                <Button Style="{StaticResource AccentButton}" Content="🚀 スキャン開始 / 再スキャン" Padding="14,5" Margin="0,0,6,0"
+                                <Button Style="{StaticResource ModernButton}" Content="👁️ プレビュー (Space)" Padding="9,4" Margin="0,0,5,0"
+                                        Click="QuickPreviewButton_Click"/>
+                                <Button Style="{StaticResource AccentButton}" Content="🚀 スキャン開始 / 再スキャン" Padding="12,4" Margin="0,0,5,0"
                                         Click="StartScanButton_Click"/>
-                                <Button Style="{StaticResource DangerButton}" Content="⏹ 停止" Padding="12,5"
+                                <Button Style="{StaticResource DangerButton}" Content="⏹ 停止" Padding="10,4"
                                         IsEnabled="{Binding IsBusy}" Click="StopScanButton_Click"/>
                             </StackPanel>
 
                             <TextBox Text="{Binding AddressBarText, UpdateSourceTrigger=PropertyChanged}"
                                      Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#38BDF8"
-                                     Padding="8,5" FontSize="13" VerticalContentAlignment="Center"
+                                     Padding="8,4" FontSize="12.5" VerticalContentAlignment="Center"
                                      KeyDown="ScannerAddressTextBox_KeyDown"/>
                         </DockPanel>
                     </Grid>
                 </Border>
 
                 <!-- 3. ソート・フィルタ・モード切替バー -->
-                <Border Grid.Row="2" Background="#111827" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="10,7"
+                <Border Grid.Row="2" Background="#111827" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="10,6"
                         DataContext="{Binding ActiveTab}">
                     <DockPanel>
-                        <!-- 右側：リアルタイム検索ボックス -->
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="🔎 絞り込み:" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,0,6,0"/>
+                            <TextBlock Text="🔎 絞り込み:" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="11.5" Margin="0,0,5,0"/>
                             <TextBox Text="{Binding SearchFilter, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="210" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155"
-                                     Padding="6,4" FontSize="12" VerticalContentAlignment="Center"
+                                     Width="195" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155"
+                                     Padding="6,3" FontSize="12" VerticalContentAlignment="Center"
                                      ToolTip="ファイル名・拡張子・パス・判定ラベルでリアルタイム絞り込み"/>
+                            <Button Content="✕" Style="{StaticResource ModernButton}" Padding="5,2" Margin="3,0,0,0"
+                                    Click="ClearSearchFilterButton_Click" ToolTip="検索条件をクリア"/>
                         </StackPanel>
 
-                        <!-- 左側：エクスプローラータブ用ソートバー -->
+                        <!-- エクスプローラータブ用ソートバー -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
                                     Visibility="{Binding IsExplorerTab, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="並び替え:" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,0,6,0"/>
-                            <Button Style="{StaticResource AccentButton}" Content="⬇ 容量が大きい順 (フォルダ含む)"
-                                    Padding="10,4" Margin="0,0,5,0" FontSize="12" Click="SortBySizeDescButton_Click"/>
+                            <TextBlock Text="並び替え:" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="11.5" Margin="0,0,6,0"/>
+                            <Button Style="{StaticResource AccentButton}" Content="⬇ 容量が大きい順"
+                                    Padding="9,3" Margin="0,0,4,0" FontSize="11.5" Click="SortBySizeDescButton_Click"/>
                             <Button Style="{StaticResource ModernButton}" Content="🔤 名前順"
-                                    Padding="8,4" Margin="0,0,5,0" FontSize="12" Click="SortByNameButton_Click"/>
+                                    Padding="7,3" Margin="0,0,4,0" FontSize="11.5" Click="SortByNameButton_Click"/>
                             <Button Style="{StaticResource ModernButton}" Content="🏷️ 拡張子順"
-                                    Padding="8,4" Margin="0,0,5,0" FontSize="12" Click="SortByExtensionButton_Click"/>
+                                    Padding="7,3" Margin="0,0,4,0" FontSize="11.5" Click="SortByExtensionButton_Click"/>
                             <Button Style="{StaticResource ModernButton}" Content="🕒 更新日時順"
-                                    Padding="8,4" Margin="0,0,12,0" FontSize="12" Click="SortByDateButton_Click"/>
+                                    Padding="7,3" Margin="0,0,10,0" FontSize="11.5" Click="SortByDateButton_Click"/>
 
                             <CheckBox IsChecked="{Binding SortFoldersFirst}"
                                       Content="フォルダを上部にまとめる"
-                                      Foreground="#E2E8F0" VerticalAlignment="Center" FontSize="12" Margin="0,0,14,0"
-                                      ToolTip="オフにするとフォルダもファイルも純粋に容量の大きい順で並べて比較できます"/>
+                                      Foreground="#E2E8F0" VerticalAlignment="Center" FontSize="11.5" Margin="0,0,10,0"/>
 
-                            <Border Background="#064E3B" BorderBrush="#10B981" BorderThickness="1" CornerRadius="4" Padding="7,2" VerticalAlignment="Center">
-                                <TextBlock Text="✓ 拡張子・隠しファイル・システムファイル全表示中" FontSize="11" Foreground="#6EE7B7"/>
+                            <Border Background="#064E3B" BorderBrush="#10B981" BorderThickness="1" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                                <TextBlock Text="✓ 拡張子・隠し(H)・システム(S) 全表示" FontSize="10.5" Foreground="#6EE7B7"/>
                             </Border>
                         </StackPanel>
 
-                        <!-- 左側：大容量スキャンタブ用フィルタバー -->
+                        <!-- 大容量スキャンタブ用フィルタバー -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
                                     Visibility="{Binding IsScannerTab, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="表示モード:" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,0,8,0"/>
-
-                            <RadioButton Content="📄 巨大ファイル Topランキング"
+                            <RadioButton Content="📄 巨大ファイル"
                                          IsChecked="{Binding IsLargeFilesMode}"
-                                         Foreground="#F8FAFC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                            <RadioButton Content="📁 巨大フォルダ Topランキング"
+                                         Foreground="#F8FAFC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <RadioButton Content="📁 巨大フォルダ"
                                          IsChecked="{Binding IsLargeFoldersMode}"
-                                         Foreground="#F8FAFC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                            <RadioButton Content="🧹 ゴミ・一時ファイル・キャッシュ候補のみ"
+                                         Foreground="#F8FAFC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <RadioButton Content="🧹 ゴミ・キャッシュ候補"
                                          IsChecked="{Binding IsJunkMode}"
-                                         Foreground="#FBBF24" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                                         Foreground="#FBBF24" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <RadioButton Content="🧬 重複ファイル (同一内容)"
+                                         IsChecked="{Binding IsDuplicatesMode}"
+                                         Foreground="#C084FC" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
-                            <TextBlock Text="最小サイズ:" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="12" Margin="0,0,6,0"/>
+                            <TextBlock Text="最小サイズ:" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="11.5" Margin="0,0,5,0"/>
                             <ComboBox ItemsSource="{Binding ThresholdOptions}"
                                       SelectedValue="{Binding MinSizeThresholdBytes}"
                                       SelectedValuePath="Bytes"
                                       DisplayMemberPath="Label"
-                                      Width="145" FontSize="12" Padding="6,3"/>
+                                      Width="135" FontSize="11.5" Padding="5,2"/>
                         </StackPanel>
                     </DockPanel>
                 </Border>
 
-                <!-- 4. メイン DataGrid (ファイル・フォルダ一覧) -->
-                <DataGrid Grid.Row="3"
+                <!-- 4. 📊 ツリーマップ (Treemap) & 拡張子別シェア統計ダッシュボード -->
+                <Border Grid.Row="3"
+                        x:Name="VisualDashboardPanel"
+                        Background="#0F172A"
+                        BorderBrush="#1E293B"
+                        BorderThickness="0,0,0,1"
+                        Height="175"
+                        Padding="10,6"
+                        DataContext="{Binding ActiveTab}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2.2*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="1*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 左：インタラクティブ ツリーマップ -->
+                        <DockPanel Grid.Column="0">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                                <TextBlock Text="📊 容量ツリーマップ (面積＝ファイル/フォルダ容量  |  クリックで選択・ダブルクリックで開く)"
+                                           FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8"/>
+                            </DockPanel>
+                            <Border BorderBrush="#334155" BorderThickness="1" CornerRadius="4">
+                                <ctrl:TreemapControl x:Name="MainTreemapControl"
+                                                     ItemsSource="{Binding TreemapItems}"
+                                                     ItemClicked="Treemap_ItemClicked"
+                                                     ItemDoubleClicked="Treemap_ItemDoubleClicked"/>
+                            </Border>
+                        </DockPanel>
+
+                        <!-- 右：拡張子・種別シェア Top 8 -->
+                        <DockPanel Grid.Column="2">
+                            <TextBlock DockPanel.Dock="Top"
+                                       Text="📈 拡張子・種別シェア Top 8 (クリックで絞込)"
+                                       FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                            <Border Background="#162032" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="6,4">
+                                <ItemsControl ItemsSource="{Binding ExtensionStats}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,1.5">
+                                                <ProgressBar Value="{Binding Percentage, Mode=OneWay}" Maximum="100" Height="16"
+                                                             Background="#0F172A" Foreground="#1E3A8A" BorderThickness="0"/>
+                                                <Button Content="{Binding DisplayText}"
+                                                        Tag="{Binding Extension}"
+                                                        Background="Transparent" Foreground="#E2E8F0" BorderThickness="0"
+                                                        HorizontalContentAlignment="Left" Padding="6,0" FontSize="11"
+                                                        Cursor="Hand" Click="ExtensionStatFilterButton_Click"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </DockPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 5. メイン DataGrid -->
+                <DataGrid Grid.Row="4"
                           x:Name="ItemsDataGrid"
                           DataContext="{Binding ActiveTab}"
                           ItemsSource="{Binding DisplayedItems}"
@@ -461,7 +573,7 @@
                           AlternatingRowBackground="#131C31"
                           Foreground="#F1F5F9"
                           BorderThickness="0"
-                          RowHeight="32"
+                          RowHeight="31"
                           EnableRowVirtualization="True"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling"
@@ -474,7 +586,7 @@
                             <Setter Property="Foreground" Value="#CBD5E1"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                             <Setter Property="FontSize" Value="12"/>
-                            <Setter Property="Padding" Value="10,7"/>
+                            <Setter Property="Padding" Value="10,6"/>
                             <Setter Property="BorderBrush" Value="#334155"/>
                             <Setter Property="BorderThickness" Value="0,0,1,1"/>
                             <Setter Property="Cursor" Value="Hand"/>
@@ -493,10 +605,13 @@
 
                     <DataGrid.ContextMenu>
                         <ContextMenu>
+                            <MenuItem Header="👁️ クイックプレビュー (Space)" Click="QuickPreviewButton_Click" FontWeight="SemiBold"/>
                             <MenuItem Header="📂 開く / フォルダへ移動" Click="ContextOpen_Click"/>
                             <MenuItem Header="➕ 新しいタブでこの場所を開く" Click="ContextOpenInNewTab_Click"/>
                             <MenuItem Header="🔍 このフォルダを大容量スキャン" Click="ContextScanFolder_Click"/>
                             <Separator/>
+                            <MenuItem Header="✏️ 選択項目を一括リネーム (F2)..." Click="BatchRenameButton_Click"/>
+                            <MenuItem Header="⭐ このフォルダをお気に入りにピン留め" Click="ContextBookmarkFolder_Click"/>
                             <MenuItem Header="📋 フルパスをコピー" Click="ContextCopyPath_Click"/>
                             <MenuItem Header="🪟 Windows標準エクスプローラーで場所を開く" Click="ContextRevealInExplorer_Click"/>
                             <Separator/>
@@ -505,20 +620,17 @@
                     </DataGrid.ContextMenu>
 
                     <DataGrid.Columns>
-                        <!-- 選択チェックボックス -->
-                        <DataGridTemplateColumn Header="選択" Width="46" CanUserSort="False">
+                        <DataGridTemplateColumn Header="選択" Width="44" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
                                               IsEnabled="{Binding IsSystemProtected, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              ToolTip="削除対象として選択（システム保護項目は選択不可）"/>
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <!-- 名前 (アイコン + 拡張子込みフルネーム) -->
-                        <DataGridTemplateColumn Header="名前 (拡張子常時表示)" Width="290" SortMemberPath="Name">
+                        <DataGridTemplateColumn Header="名前 (拡張子常時表示)" Width="270" SortMemberPath="Name">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0">
@@ -545,8 +657,7 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <!-- 拡張子 -->
-                        <DataGridTextColumn Header="拡張子" Binding="{Binding Extension}" Width="85" SortMemberPath="Extension" IsReadOnly="True">
+                        <DataGridTextColumn Header="拡張子" Binding="{Binding Extension}" Width="80" SortMemberPath="Extension" IsReadOnly="True">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="VerticalAlignment" Value="Center"/>
@@ -557,35 +668,31 @@
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
 
-                        <!-- サイズ & 視覚的容量バー -->
-                        <DataGridTemplateColumn Header="容量 (サイズ順ソート対応)" Width="180" SortMemberPath="Size">
+                        <DataGridTemplateColumn Header="容量 (サイズ順ソート)" Width="175" SortMemberPath="Size">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid Margin="6,3" VerticalAlignment="Center">
-                                        <!-- 背景容量バー -->
                                         <Border HorizontalAlignment="Left"
                                                 Width="{Binding SizeRatio, Converter={StaticResource RatioToWidthConverter}}"
-                                                Height="20"
+                                                Height="19"
                                                 CornerRadius="3"
                                                 Background="#3B0764"
                                                 BorderBrush="#A855F7"
                                                 BorderThickness="1"
                                                 Opacity="0.65"/>
-                                        <!-- サイズテキスト -->
                                         <TextBlock Text="{Binding SizeDisplay}"
                                                    HorizontalAlignment="Right"
                                                    VerticalAlignment="Center"
                                                    Margin="6,0,8,0"
                                                    FontWeight="Bold"
-                                                   FontSize="12.5"
+                                                   FontSize="12"
                                                    Foreground="#F8FAFC"/>
                                     </Grid>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <!-- 種別 / ゴミ・保護判定 -->
-                        <DataGridTemplateColumn Header="種別・ゴミ判定" Width="145" SortMemberPath="Category">
+                        <DataGridTemplateColumn Header="種別・ゴミ・重複判定" Width="165" SortMemberPath="Category">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Border Background="{Binding Category, Converter={StaticResource CategoryBgConverter}}"
@@ -593,44 +700,41 @@
                                             HorizontalAlignment="Left" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding CategoryLabel}"
                                                    Foreground="{Binding Category, Converter={StaticResource CategoryFgConverter}}"
-                                                   FontSize="11.5" FontWeight="SemiBold"/>
+                                                   FontSize="11" FontWeight="SemiBold"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <!-- 属性 (隠し・システム・読取専用・リンク) -->
-                        <DataGridTextColumn Header="属性 (H/S/R/L)" Binding="{Binding AttributesDisplay}" Width="135" SortMemberPath="Attributes" IsReadOnly="True">
+                        <DataGridTextColumn Header="属性 (H/S/R/L)" Binding="{Binding AttributesDisplay}" Width="125" SortMemberPath="Attributes" IsReadOnly="True">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="VerticalAlignment" Value="Center"/>
                                     <Setter Property="Margin" Value="8,0"/>
                                     <Setter Property="Foreground" Value="#FBBF24"/>
-                                    <Setter Property="FontSize" Value="11.5"/>
+                                    <Setter Property="FontSize" Value="11"/>
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
 
-                        <!-- 更新日時 -->
-                        <DataGridTextColumn Header="更新日時" Binding="{Binding ModifiedDate, StringFormat=yyyy/MM/dd HH:mm}" Width="135" SortMemberPath="ModifiedDate" IsReadOnly="True">
+                        <DataGridTextColumn Header="更新日時" Binding="{Binding ModifiedDate, StringFormat=yyyy/MM/dd HH:mm}" Width="125" SortMemberPath="ModifiedDate" IsReadOnly="True">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="VerticalAlignment" Value="Center"/>
                                     <Setter Property="Margin" Value="8,0"/>
                                     <Setter Property="Foreground" Value="#94A3B8"/>
-                                    <Setter Property="FontSize" Value="12"/>
+                                    <Setter Property="FontSize" Value="11.5"/>
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
 
-                        <!-- フルパス -->
                         <DataGridTextColumn Header="フルパス" Binding="{Binding FullPath}" Width="*" SortMemberPath="FullPath" IsReadOnly="True">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="VerticalAlignment" Value="Center"/>
                                     <Setter Property="Margin" Value="8,0"/>
                                     <Setter Property="Foreground" Value="#64748B"/>
-                                    <Setter Property="FontSize" Value="11.5"/>
+                                    <Setter Property="FontSize" Value="11"/>
                                     <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
@@ -638,47 +742,150 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>
+
+            <!-- ==================== デュアルペイン転送バー & 第2ペイン (Split View) ==================== -->
+            <Border Grid.Column="3"
+                    x:Name="DualPaneTransferBar"
+                    Visibility="Collapsed"
+                    Background="#0F172A"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1,0,1,0"
+                    Padding="4">
+                <StackPanel VerticalAlignment="Center">
+                    <Button Style="{StaticResource AccentButton}" Content="➡ コピー" Padding="6,6" Margin="0,0,0,8" FontSize="11"
+                            Click="CopyToSecondaryPaneButton_Click" ToolTip="左ペインで選択した項目を右ペインのフォルダへコピー"/>
+                    <Button Style="{StaticResource ModernButton}" Content="➡ 移動" Padding="6,6" Margin="0,0,0,20" FontSize="11"
+                            Click="MoveToSecondaryPaneButton_Click" ToolTip="左ペインで選択した項目を右ペインのフォルダへ移動"/>
+                    <Button Style="{StaticResource AccentButton}" Content="⬅ コピー" Padding="6,6" Margin="0,0,0,8" FontSize="11"
+                            Click="CopyToPrimaryPaneButton_Click" ToolTip="右ペインで選択した項目を左ペインのフォルダへコピー"/>
+                    <Button Style="{StaticResource ModernButton}" Content="⬅ 移動" Padding="6,6" FontSize="11"
+                            Click="MoveToPrimaryPaneButton_Click" ToolTip="右ペインで選択した項目を左ペインのフォルダへ移動"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 第2ペイン (右ペイン) -->
+            <Border Grid.Column="4"
+                    x:Name="DualPaneContainer"
+                    Visibility="Collapsed"
+                    Background="#0B1120"
+                    DataContext="{Binding SecondaryTab}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 右ペイン ヘッダー -->
+                    <Border Grid.Row="0" Background="#162032" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="8,7">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Left" Text="🪟 第2ペイン:" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource ModernButton}" Content="✕ 閉じる" Padding="7,3" Margin="6,0,0,0"
+                                    Click="ToggleDualPaneButton_Click"/>
+                            <TextBlock Text="{Binding CurrentPath}" Foreground="#CBD5E1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- 右ペイン ナビゲーション -->
+                    <Border Grid.Row="1" Background="#111827" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="8,6">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="0,0,6,0">
+                                <Button Style="{StaticResource ModernButton}" Content="⬅" Width="28" Margin="0,0,3,0" IsEnabled="{Binding CanGoBack}" Click="SecondaryBackButton_Click"/>
+                                <Button Style="{StaticResource ModernButton}" Content="⬆" Width="28" Margin="0,0,3,0" IsEnabled="{Binding CanGoUp}" Click="SecondaryUpButton_Click"/>
+                                <Button Style="{StaticResource ModernButton}" Content="🔄" Width="28" Click="SecondaryRefreshButton_Click"/>
+                            </StackPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource ModernButton}" Content="移動" Padding="8,3" Margin="6,0,0,0" Click="SecondaryNavigateButton_Click"/>
+                            <TextBox Text="{Binding AddressBarText, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="#0F172A" Foreground="White" BorderBrush="#334155" Padding="6,3" VerticalContentAlignment="Center"
+                                     KeyDown="SecondaryAddressTextBox_KeyDown"/>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- 右ペイン DataGrid -->
+                    <DataGrid Grid.Row="2"
+                              x:Name="SecondaryDataGrid"
+                              ItemsSource="{Binding DisplayedItems}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="False"
+                              HeadersVisibility="Column"
+                              Background="#0B1120"
+                              RowBackground="#0F172A"
+                              AlternatingRowBackground="#131C31"
+                              Foreground="#F1F5F9"
+                              BorderThickness="0"
+                              RowHeight="29"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="#1E293B"
+                              MouseDoubleClick="SecondaryDataGrid_MouseDoubleClick">
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#1E293B"/>
+                                <Setter Property="Foreground" Value="#CBD5E1"/>
+                                <Setter Property="Padding" Value="8,5"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="選択" Width="40">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="種別" Binding="{Binding IconSymbol}" Width="42" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="名前" Binding="{Binding Name}" Width="190" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="容量" Binding="{Binding SizeDisplay}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="属性" Binding="{Binding AttributesDisplay}" Width="*" IsReadOnly="True"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- 右ペイン ステータス -->
+                    <Border Grid.Row="3" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="8,5">
+                        <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"/>
+                    </Border>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- ==================== 下部：ステータスバー ＆ 一括完全削除アクションバー ==================== -->
-        <Border Grid.Row="2" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="14,9"
+        <Border Grid.Row="2" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="14,8"
                 DataContext="{Binding ActiveTab}">
             <DockPanel>
-                <!-- 右側：一括選択＆完全削除アクション -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding SelectionSummary}"
                                VerticalAlignment="Center"
                                Foreground="#38BDF8"
                                FontWeight="SemiBold"
-                               FontSize="12.5"
-                               Margin="0,0,14,0"/>
+                               FontSize="12"
+                               Margin="0,0,12,0"/>
 
                     <Button Style="{StaticResource ModernButton}"
-                            Content="🧹 ゴミ・キャッシュ候補を一括チェック"
-                            Padding="10,6" Margin="0,0,6,0"
-                            Click="SelectAllJunkButton_Click"
-                            ToolTip="現在の一覧から一時ファイル・キャッシュ・ログ・インストーラー候補を自動選択します"/>
+                            Content="🧹 ゴミ・重複コピーを一括チェック"
+                            Padding="10,5" Margin="0,0,6,0"
+                            Click="SelectAllJunkButton_Click"/>
 
                     <Button Style="{StaticResource ModernButton}"
                             Content="選択解除"
-                            Padding="10,6" Margin="0,0,10,0"
+                            Padding="10,5" Margin="0,0,10,0"
                             Click="ClearSelectionButton_Click"/>
 
                     <Button Style="{StaticResource DangerButton}"
                             Content="🔥 選択項目を完全削除して容量を空ける"
-                            Padding="14,6"
+                            Padding="14,5"
                             Click="DeleteSelectedItemsButton_Click"/>
                 </StackPanel>
 
-                <!-- 左側：進捗・ステータス表示 -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <ProgressBar IsIndeterminate="True" Width="80" Height="8" Margin="0,0,10,0"
+                    <ProgressBar IsIndeterminate="True" Width="75" Height="7" Margin="0,0,10,0"
                                  Foreground="#38BDF8" Background="#1E293B" BorderThickness="0"
                                  Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"/>
                     <TextBlock Text="{Binding StatusText}"
                                VerticalAlignment="Center"
                                Foreground="#CBD5E1"
-                               FontSize="12.5"
+                               FontSize="12"
                                TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </DockPanel>

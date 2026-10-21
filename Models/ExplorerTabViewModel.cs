@@ -17,13 +17,23 @@ public enum ScanFilterMode
 {
     LargeFiles,
     LargeFolders,
-    JunkFilesAndFolders
+    JunkFilesAndFolders,
+    DuplicateFiles
 }
 
 public class SizeThresholdOption
 {
     public string Label { get; init; } = string.Empty;
     public long Bytes { get; init; }
+}
+
+public class ExtensionStatItem
+{
+    public string Extension { get; init; } = string.Empty;
+    public long TotalBytes { get; init; }
+    public int Count { get; init; }
+    public double Percentage { get; init; }
+    public string DisplayText => $"{Extension}  {FileSystemItem.FormatBytes(TotalBytes)} ({Percentage:F1}%)";
 }
 
 public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
@@ -37,6 +47,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
     private string _searchFilter = string.Empty;
     private string _statusText = "準備完了";
     private bool _isBusy;
+    private bool _isPinned;
     private bool _sortFoldersFirst;
     private string _currentSortBy = "Size";
     private bool _sortDescending = true;
@@ -45,6 +56,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
     private long _minSizeThresholdBytes = 100L * 1024 * 1024; // デフォルト 100 MB
     private ScanFilterMode _scanFilterMode = ScanFilterMode.LargeFiles;
     private ScanResult? _lastScanResult;
+    private List<FileSystemItem>? _cachedDuplicates;
 
     // 元データ保持
     private List<FileSystemItem> _rawDirectoryItems = [];
@@ -57,6 +69,8 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
     public bool IsScannerTab => Kind == TabKind.LargeFileScanner;
 
     public ObservableCollection<FileSystemItem> DisplayedItems { get; } = [];
+    public ObservableCollection<ExtensionStatItem> ExtensionStats { get; } = [];
+    public IEnumerable<FileSystemItem> TreemapItems => DisplayedItems.Take(48).ToList();
 
     public static List<SizeThresholdOption> ThresholdOptions { get; } =
     [
@@ -67,12 +81,13 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
         new() { Label = "1 GB 以上", Bytes = 1024L * 1024 * 1024 }
     ];
 
-    public ExplorerTabViewModel(DiskScannerService scannerService, TabKind kind, string initialPath)
+    public ExplorerTabViewModel(DiskScannerService scannerService, TabKind kind, string initialPath, bool isPinned = false)
     {
         _scannerService = scannerService;
         Kind = kind;
         _currentPath = initialPath;
         _addressBarText = initialPath;
+        _isPinned = isPinned;
         UpdateHeaderTitle();
     }
 
@@ -80,6 +95,20 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _headerTitle;
         set { if (_headerTitle != value) { _headerTitle = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsPinned
+    {
+        get => _isPinned;
+        set
+        {
+            if (_isPinned != value)
+            {
+                _isPinned = value;
+                OnPropertyChanged();
+                UpdateHeaderTitle();
+            }
+        }
     }
 
     public string CurrentPath
@@ -129,10 +158,6 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
         set { if (_isBusy != value) { _isBusy = value; OnPropertyChanged(); } }
     }
 
-    /// <summary>
-    /// false の場合、フォルダとファイルを区別せず純粋に容量の大きい順でソートします。
-    /// true の場合、フォルダを上部にまとめてその中で容量順にソートします。
-    /// </summary>
     public bool SortFoldersFirst
     {
         get => _sortFoldersFirst;
@@ -181,10 +206,11 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             if (_minSizeThresholdBytes != value)
             {
                 _minSizeThresholdBytes = value;
+                _cachedDuplicates = null;
                 OnPropertyChanged();
                 if (IsScannerTab)
                 {
-                    RefreshDisplayedItems();
+                    _ = HandleScanFilterChangeAsync();
                 }
             }
         }
@@ -202,9 +228,10 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(IsLargeFilesMode));
                 OnPropertyChanged(nameof(IsLargeFoldersMode));
                 OnPropertyChanged(nameof(IsJunkMode));
+                OnPropertyChanged(nameof(IsDuplicatesMode));
                 if (IsScannerTab)
                 {
-                    RefreshDisplayedItems();
+                    _ = HandleScanFilterChangeAsync();
                 }
             }
         }
@@ -226,6 +253,41 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _scanFilterMode == ScanFilterMode.JunkFilesAndFolders;
         set { if (value) ScanMode = ScanFilterMode.JunkFilesAndFolders; }
+    }
+
+    public bool IsDuplicatesMode
+    {
+        get => _scanFilterMode == ScanFilterMode.DuplicateFiles;
+        set { if (value) ScanMode = ScanFilterMode.DuplicateFiles; }
+    }
+
+    private async Task HandleScanFilterChangeAsync()
+    {
+        if (_scanFilterMode == ScanFilterMode.DuplicateFiles && _lastScanResult is not null && _cachedDuplicates is null)
+        {
+            IsBusy = true;
+            var progress = new Progress<string>(msg => StatusText = msg);
+            try
+            {
+                var dups = await DuplicateDetectorService.FindDuplicateFilesAsync(
+                    _lastScanResult.LargeFiles,
+                    _minSizeThresholdBytes,
+                    progress,
+                    CancellationToken.None);
+
+                foreach (var item in dups)
+                {
+                    item.PropertyChanged += OnItemPropertyChanged;
+                }
+                _cachedDuplicates = dups;
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        RefreshDisplayedItems();
     }
 
     public bool CanGoBack => _backStack.Count > 0;
@@ -276,7 +338,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
         {
             int count = SelectedCount;
             if (count == 0)
-                return "チェックボックスで削除したい項目を選択できます";
+                return "チェックボックスで削除したい項目を選択できます (Spaceでプレビュー / F2で一括リネーム)";
             return $"選択中: {count:N0} 件  |  解放予定サイズ: {FileSystemItem.FormatBytes(SelectedTotalBytes)}";
         }
     }
@@ -297,9 +359,10 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             folderName = _currentPath;
         }
 
+        string pinPrefix = _isPinned ? "📌 " : string.Empty;
         HeaderTitle = Kind == TabKind.FolderExplorer
-            ? $"📁 {folderName}"
-            : $"🔍 大容量スキャン ({folderName})";
+            ? $"{pinPrefix}📁 {folderName}"
+            : $"{pinPrefix}🔍 スキャン ({folderName})";
     }
 
     // ==================== フォルダ閲覧タブのナビゲーション ====================
@@ -365,7 +428,6 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
         _rawDirectoryItems = items;
         RefreshDisplayedItems();
 
-        // 未計算のサブフォルダサイズをバックグラウンドで並列計算してリアルタイム更新
         var foldersToCompute = items
             .Where(i => i.IsDirectory && !i.IsReparsePoint && i.IsCalculatingSize)
             .ToList();
@@ -424,6 +486,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
                             else
                             {
                                 RecalculateSizeRatios(DisplayedItems);
+                                OnPropertyChanged(nameof(TreemapItems));
                             }
                         }
                     });
@@ -505,6 +568,7 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
         var ct = cts.Token;
 
         IsBusy = true;
+        _cachedDuplicates = null;
         DisplayedItems.Clear();
         NotifySelectionChanged();
 
@@ -516,7 +580,6 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            // ベースとして 10MB 以上のアイテムをすべて収集しておく（フィルタ切替を瞬時に行うため）
             const long baseCollectThreshold = 10L * 1024 * 1024;
             var result = await _scannerService.ScanLargeItemsAsync(scanPath, baseCollectThreshold, progress, ct);
 
@@ -534,7 +597,15 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
                 item.PropertyChanged += OnItemPropertyChanged;
 
             _lastScanResult = result;
-            RefreshDisplayedItems();
+
+            if (_scanFilterMode == ScanFilterMode.DuplicateFiles)
+            {
+                await HandleScanFilterChangeAsync();
+            }
+            else
+            {
+                RefreshDisplayedItems();
+            }
 
             string stateLabel = result.WasCancelled ? "⏹ スキャン中断 (途中結果を表示中)" : "✅ スキャン完了";
             StatusText = $"{stateLabel} ({result.Elapsed.TotalSeconds:F1}秒)  |  走査: {result.TotalScannedFiles:N0} ファイル ({FileSystemItem.FormatBytes(result.TotalScannedBytes)})  |  表示中: {DisplayedItems.Count:N0} 件";
@@ -580,7 +651,6 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
         }
         else
         {
-            // サイズ列や更新日時列に切り替えたときはデフォルトで降順（大きい順/新しい順）にする
             _sortDescending = sortByColumn is "Size" or "ModifiedDate";
         }
 
@@ -603,6 +673,8 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             if (_lastScanResult is null)
             {
                 DisplayedItems.Clear();
+                ExtensionStats.Clear();
+                OnPropertyChanged(nameof(TreemapItems));
                 NotifySelectionChanged();
                 return;
             }
@@ -617,11 +689,11 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
                         .Where(f => f.Size >= threshold && SystemProtectionService.IsJunkCandidate(f.Category))
                         .Concat(FilterRedundantParentFolders(
                             _lastScanResult.LargeFolders.Where(d => d.Size >= threshold && SystemProtectionService.IsJunkCandidate(d.Category)))),
+                ScanFilterMode.DuplicateFiles => _cachedDuplicates ?? Enumerable.Empty<FileSystemItem>(),
                 _ => _lastScanResult.LargeFiles.Where(f => f.Size >= threshold)
             };
         }
 
-        // 検索テキストによるフィルタ
         if (!string.IsNullOrWhiteSpace(_searchFilter))
         {
             string query = _searchFilter.Trim();
@@ -632,9 +704,13 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
                 i.Extension.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
-        // ソート適用
         IOrderedEnumerable<FileSystemItem> ordered;
-        if (_sortFoldersFirst && Kind == TabKind.FolderExplorer)
+        if (_scanFilterMode == ScanFilterMode.DuplicateFiles && Kind == TabKind.LargeFileScanner)
+        {
+            // 重複ファイルモードではペアが隣り合うようにサイズ降順＋グループ順を維持
+            ordered = source.OrderByDescending(i => i.SortableSize).ThenBy(i => i.CategoryLabel);
+        }
+        else if (_sortFoldersFirst && Kind == TabKind.FolderExplorer)
         {
             ordered = source.OrderByDescending(i => i.IsDirectory);
             ordered = ApplySecondarySort(ordered);
@@ -644,10 +720,10 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             ordered = ApplyPrimarySort(source);
         }
 
-        // スキャン結果で件数が多すぎる場合は上位 1,500 件に制限して UI を軽快に保つ
         var finalList = (Kind == TabKind.LargeFileScanner ? ordered.Take(1500) : ordered).ToList();
 
         RecalculateSizeRatios(finalList);
+        UpdateExtensionStatistics(finalList);
 
         DisplayedItems.Clear();
         foreach (var item in finalList)
@@ -655,12 +731,40 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             DisplayedItems.Add(item);
         }
 
+        OnPropertyChanged(nameof(TreemapItems));
         NotifySelectionChanged();
+    }
+
+    private void UpdateExtensionStatistics(IReadOnlyList<FileSystemItem> list)
+    {
+        ExtensionStats.Clear();
+        var sizedItems = list.Where(i => i.Size > 0).ToList();
+        if (sizedItems.Count == 0) return;
+
+        long totalBytes = sizedItems.Sum(i => i.Size);
+        if (totalBytes <= 0) return;
+
+        var groups = sizedItems
+            .GroupBy(i => string.IsNullOrWhiteSpace(i.Extension) ? "(なし)" : i.Extension.ToLowerInvariant())
+            .Select(g => new ExtensionStatItem
+            {
+                Extension = g.Key,
+                TotalBytes = g.Sum(x => x.Size),
+                Count = g.Count(),
+                Percentage = (double)g.Sum(x => x.Size) / totalBytes * 100.0
+            })
+            .OrderByDescending(x => x.TotalBytes)
+            .Take(8)
+            .ToList();
+
+        foreach (var g in groups)
+        {
+            ExtensionStats.Add(g);
+        }
     }
 
     private static IEnumerable<FileSystemItem> FilterRedundantParentFolders(IEnumerable<FileSystemItem> folders)
     {
-        // 大容量フォルダランキングでは、最上位から最大1000件を返す
         return folders.Take(1000);
     }
 
@@ -790,6 +894,13 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
             _lastScanResult.LargeFolders.RemoveAll(ShouldRemove);
         }
 
+        if (_cachedDuplicates is not null)
+        {
+            foreach (var item in _cachedDuplicates.Where(ShouldRemove))
+                item.PropertyChanged -= OnItemPropertyChanged;
+            _cachedDuplicates.RemoveAll(ShouldRemove);
+        }
+
         RefreshDisplayedItems();
     }
 
@@ -812,6 +923,11 @@ public class ExplorerTabViewModel : INotifyPropertyChanged, IDisposable
                 f.PropertyChanged -= OnItemPropertyChanged;
             foreach (var d in _lastScanResult.LargeFolders)
                 d.PropertyChanged -= OnItemPropertyChanged;
+        }
+        if (_cachedDuplicates is not null)
+        {
+            foreach (var dup in _cachedDuplicates)
+                dup.PropertyChanged -= OnItemPropertyChanged;
         }
     }
 

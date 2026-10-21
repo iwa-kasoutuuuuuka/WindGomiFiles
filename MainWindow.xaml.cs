@@ -16,8 +16,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly DiskScannerService _scannerService = new();
     private ExplorerTabViewModel? _activeTab;
+    private ExplorerTabViewModel? _secondaryTab;
+    private bool _showVisualDashboard = true;
+    private bool _showDualPane;
 
     public ObservableCollection<ExplorerTabViewModel> Tabs { get; } = [];
+    public ObservableCollection<QuickAccessItem> QuickAccessItems { get; } = [];
 
     public ExplorerTabViewModel? ActiveTab
     {
@@ -27,6 +31,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_activeTab != value)
             {
                 _activeTab = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public ExplorerTabViewModel? SecondaryTab
+    {
+        get => _secondaryTab;
+        set
+        {
+            if (_secondaryTab != value)
+            {
+                _secondaryTab = value;
                 OnPropertyChanged();
             }
         }
@@ -42,9 +59,48 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         RefreshDriveCards();
-        PopulateQuickAccess();
 
-        // 初期タブとしてユーザープロファイル（または C:\）を開く
+        var savedSession = SessionStateService.LoadSession();
+        PopulateQuickAccess(savedSession?.CustomBookmarks);
+
+        // 第2ペイン（デュアルペイン用）の初期化
+        string secPath = savedSession?.SecondaryPanePath ?? @"C:\";
+        if (!Directory.Exists(secPath)) secPath = @"C:\";
+        SecondaryTab = new ExplorerTabViewModel(_scannerService, TabKind.FolderExplorer, secPath);
+
+        if (savedSession is not null)
+        {
+            _showVisualDashboard = savedSession.ShowVisualDashboard;
+            VisualDashboardPanel.Visibility = _showVisualDashboard ? Visibility.Visible : Visibility.Collapsed;
+
+            if (savedSession.ShowDualPane)
+            {
+                await SetDualPaneVisibilityAsync(true);
+            }
+        }
+
+        // 前回セッションのタブ復元、またはデフォルト初期タブの起動
+        if (savedSession?.Tabs is { Count: > 0 })
+        {
+            foreach (var savedTab in savedSession.Tabs)
+            {
+                if (!Directory.Exists(savedTab.Path)) continue;
+                var tab = new ExplorerTabViewModel(_scannerService, savedTab.Kind, savedTab.Path, savedTab.IsPinned);
+                Tabs.Add(tab);
+                if (savedTab.Kind == TabKind.FolderExplorer)
+                {
+                    await tab.NavigateToAsync(savedTab.Path, recordHistory: false);
+                }
+            }
+
+            if (Tabs.Count > 0)
+            {
+                int activeIdx = Math.Clamp(savedSession.ActiveTabIndex, 0, Tabs.Count - 1);
+                ActiveTab = Tabs[activeIdx];
+                return;
+            }
+        }
+
         string initialPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrWhiteSpace(initialPath) || !Directory.Exists(initialPath))
         {
@@ -59,8 +115,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DrivesItemsControl.ItemsSource = DriveItem.GetAvailableDrives();
     }
 
-    private void PopulateQuickAccess()
+    private void PopulateQuickAccess(List<SavedBookmarkInfo>? customBookmarks = null)
     {
+        QuickAccessItems.Clear();
+
         string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string roamingAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -70,15 +128,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         string userTemp = Path.GetTempPath().TrimEnd('\\');
 
-        var list = new List<QuickAccessItem>
+        // カスタムお気に入りピン留め
+        if (customBookmarks is not null)
+        {
+            foreach (var bm in customBookmarks)
+            {
+                if (string.IsNullOrWhiteSpace(bm.TargetPath)) continue;
+                QuickAccessItems.Add(new QuickAccessItem
+                {
+                    Icon = "⭐",
+                    Title = bm.Title,
+                    Subtitle = $"[お気に入り] {bm.TargetPath}",
+                    TargetPath = bm.TargetPath,
+                    IsJunkHotspot = false
+                });
+            }
+        }
+
+        var defaults = new List<QuickAccessItem>
         {
             new() { Icon = "💻", Title = "Cドライブ (C:\\)", Subtitle = "システムドライブ直下", TargetPath = @"C:\" },
             new() { Icon = "🏠", Title = "ユーザーホーム", Subtitle = userProfile, TargetPath = userProfile },
             new() { Icon = "📥", Title = "ダウンロード", Subtitle = "放置インストーラー・ZIP確認", TargetPath = downloads, IsJunkHotspot = true },
             new() { Icon = "🖥️", Title = "デスクトップ", Subtitle = desktop, TargetPath = desktop },
             new() { Icon = "📄", Title = "ドキュメント", Subtitle = documents, TargetPath = documents },
-
-            // 隠しフォルダ・ゴミ溜まりスポット直通
             new() { Icon = "👻", Title = "AppData\\Local (隠し)", Subtitle = "肥大化しやすいアプリデータ・キャッシュ", TargetPath = localAppData, IsJunkHotspot = true },
             new() { Icon = "👻", Title = "AppData\\Roaming (隠し)", Subtitle = "設定・共有アプリキャッシュ", TargetPath = roamingAppData, IsJunkHotspot = true },
             new() { Icon = "👻", Title = "AppData\\LocalLow (隠し)", Subtitle = localLowAppData, TargetPath = localLowAppData, IsJunkHotspot = true },
@@ -89,10 +162,71 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             new() { Icon = "📦", Title = "WinUpdate キャッシュ", Subtitle = @"C:\Windows\SoftwareDistribution\Download", TargetPath = @"C:\Windows\SoftwareDistribution\Download", IsJunkHotspot = true }
         };
 
-        QuickAccessListBox.ItemsSource = list;
+        foreach (var d in defaults)
+        {
+            QuickAccessItems.Add(d);
+        }
+
+        QuickAccessListBox.ItemsSource = QuickAccessItems;
     }
 
-    // ==================== タブ操作 ====================
+    // ==================== お気に入りブックマーク操作 ====================
+
+    private void AddCurrentFolderBookmarkButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActiveTab is null) return;
+        AddBookmarkForPath(ActiveTab.CurrentPath);
+    }
+
+    private void ContextBookmarkFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemsDataGrid.SelectedItem is FileSystemItem selected)
+        {
+            string path = selected.IsDirectory ? selected.FullPath : selected.ParentPath;
+            AddBookmarkForPath(path);
+        }
+    }
+
+    private void AddBookmarkForPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)) return;
+        string norm = path.TrimEnd('\\');
+        if (QuickAccessItems.Any(q => q.Icon == "⭐" && q.TargetPath.TrimEnd('\\').Equals(norm, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (ActiveTab is not null)
+                ActiveTab.StatusText = $"⭐ すでにお気に入りに登録されています: {path}";
+            return;
+        }
+
+        string name = Path.GetFileName(norm);
+        if (string.IsNullOrEmpty(name)) name = path;
+
+        QuickAccessItems.Insert(0, new QuickAccessItem
+        {
+            Icon = "⭐",
+            Title = name,
+            Subtitle = $"[お気に入り] {path}",
+            TargetPath = path
+        });
+
+        if (ActiveTab is not null)
+            ActiveTab.StatusText = $"⭐ お気に入りにピン留めしました: {path}";
+    }
+
+    private void QuickAccessRemoveBookmark_Click(object sender, RoutedEventArgs e)
+    {
+        if (QuickAccessListBox.SelectedItem is QuickAccessItem item)
+        {
+            if (item.Icon != "⭐")
+            {
+                MessageBox.Show("標準ショートカット項目は削除できません（⭐お気に入り追加した項目のみ削除可能です）。", "情報", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            QuickAccessItems.Remove(item);
+        }
+    }
+
+    // ==================== タブ操作 & ピン留め ====================
 
     public async Task OpenNewExplorerTabAsync(string path)
     {
@@ -113,6 +247,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void TogglePinActiveTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActiveTab is null) return;
+        ActiveTab.IsPinned = !ActiveTab.IsPinned;
+        ActiveTab.StatusText = ActiveTab.IsPinned
+            ? "📌 このタブをピン留め固定しました（終了時も優先保持されます）"
+            : "📌 タブのピン留めを解除しました";
+    }
+
     private async void NewExplorerTabButton_Click(object sender, RoutedEventArgs e)
     {
         string path = ActiveTab?.CurrentPath ?? @"C:\";
@@ -131,12 +274,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (sender is Button { Tag: ExplorerTabViewModel tab })
         {
-            await CloseTabAsync(tab);
+            await CloseTabAsync(tab, forceClosePinned: false);
         }
     }
 
-    private async Task CloseTabAsync(ExplorerTabViewModel tab)
+    private async Task CloseTabAsync(ExplorerTabViewModel tab, bool forceClosePinned)
     {
+        if (tab.IsPinned && !forceClosePinned)
+        {
+            var res = MessageBox.Show(
+                $"タブ「{tab.HeaderTitle}」はピン留め（📌）されています。閉じますか？",
+                "ピン留めタブの確認",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (res != MessageBoxResult.Yes) return;
+        }
+
         int index = Tabs.IndexOf(tab);
         tab.Dispose();
         Tabs.Remove(tab);
@@ -151,6 +304,311 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ActiveTab = Tabs[nextIdx];
         }
     }
+
+    // ==================== ツリーマップ & 拡張子シェア & スマートクリーナー ====================
+
+    private void ToggleVisualDashboardButton_Click(object sender, RoutedEventArgs e)
+    {
+        _showVisualDashboard = !_showVisualDashboard;
+        VisualDashboardPanel.Visibility = _showVisualDashboard ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void Treemap_ItemClicked(FileSystemItem item)
+    {
+        ItemsDataGrid.SelectedItem = item;
+        ItemsDataGrid.ScrollIntoView(item);
+    }
+
+    private async void Treemap_ItemDoubleClicked(FileSystemItem item)
+    {
+        if (ActiveTab is null) return;
+        if (item.IsDirectory)
+        {
+            if (ActiveTab.IsExplorerTab)
+                await ActiveTab.NavigateToAsync(item.FullPath);
+            else
+                await OpenNewExplorerTabAsync(item.FullPath);
+        }
+        else
+        {
+            OpenQuickPreview(item);
+        }
+    }
+
+    private void ExtensionStatFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActiveTab is null) return;
+        if (sender is Button { Tag: string ext })
+        {
+            ActiveTab.SearchFilter = ActiveTab.SearchFilter == ext ? string.Empty : ext;
+        }
+    }
+
+    private void ClearSearchFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActiveTab is not null)
+        {
+            ActiveTab.SearchFilter = string.Empty;
+        }
+    }
+
+    private void OpenSmartCleanerButton_Click(object sender, RoutedEventArgs e)
+    {
+        string currentPath = ActiveTab?.CurrentPath ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var cleanerWindow = new SmartCleanerWindow(
+            _scannerService,
+            currentPath,
+            OpenNewExplorerTabAsync,
+            RefreshDriveCards)
+        {
+            Owner = this
+        };
+        cleanerWindow.ShowDialog();
+    }
+
+    // ==================== クイックプレビュー (Space) & 一括リネーム (F2) ====================
+
+    private void QuickPreviewButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemsDataGrid.SelectedItem is FileSystemItem selected)
+        {
+            OpenQuickPreview(selected);
+        }
+        else if (ActiveTab?.DisplayedItems.FirstOrDefault(i => i.IsSelected) is FileSystemItem checkedItem)
+        {
+            OpenQuickPreview(checkedItem);
+        }
+        else
+        {
+            MessageBox.Show("プレビューしたいファイルまたはフォルダを一覧から選択してください（または選択して Space キーを押してください）。", "クイックプレビュー", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void OpenQuickPreview(FileSystemItem item)
+    {
+        var previewWin = new QuickPreviewWindow(item, _scannerService)
+        {
+            Owner = this
+        };
+        previewWin.ShowDialog();
+    }
+
+    private void BatchRenameButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ActiveTab is null) return;
+
+        var targets = ActiveTab.DisplayedItems.Where(i => i.IsSelected).ToList();
+        if (targets.Count == 0)
+        {
+            targets = ItemsDataGrid.SelectedItems.OfType<FileSystemItem>().ToList();
+        }
+
+        if (targets.Count == 0)
+        {
+            MessageBox.Show("一括リネームしたい項目をチェックボックスまたは行選択（Ctrl/Shift＋クリック）で選択してください。", "一括リネーム", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var renameWin = new BatchRenameWindow(targets)
+        {
+            Owner = this
+        };
+
+        if (renameWin.ShowDialog() == true)
+        {
+            ActiveTab.RefreshDisplayedItems();
+            ActiveTab.StatusText = $"✅ {renameWin.RenamedCount:N0} 件の項目を一括リネームしました。";
+        }
+    }
+
+    // ==================== 2画面分割 (デュアルペイン / Split View) ====================
+
+    private async void ToggleDualPaneButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SetDualPaneVisibilityAsync(!_showDualPane);
+    }
+
+    private async Task SetDualPaneVisibilityAsync(bool visible)
+    {
+        _showDualPane = visible;
+        if (visible)
+        {
+            DualPaneTransferBar.Visibility = Visibility.Visible;
+            DualPaneContainer.Visibility = Visibility.Visible;
+            DualPaneColumn.Width = new GridLength(1, GridUnitType.Star);
+
+            if (SecondaryTab is not null && SecondaryTab.DisplayedItems.Count == 0)
+            {
+                string startPath = ActiveTab?.CurrentPath ?? @"C:\";
+                if (!Directory.Exists(startPath)) startPath = @"C:\";
+                await SecondaryTab.NavigateToAsync(startPath, recordHistory: false);
+            }
+        }
+        else
+        {
+            DualPaneTransferBar.Visibility = Visibility.Collapsed;
+            DualPaneContainer.Visibility = Visibility.Collapsed;
+            DualPaneColumn.Width = new GridLength(0);
+        }
+    }
+
+    private async void SecondaryBackButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SecondaryTab is not null) await SecondaryTab.GoBackAsync();
+    }
+
+    private async void SecondaryUpButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SecondaryTab is not null) await SecondaryTab.GoUpAsync();
+    }
+
+    private async void SecondaryRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SecondaryTab is not null) await SecondaryTab.NavigateToAsync(SecondaryTab.CurrentPath, false, true);
+    }
+
+    private async void SecondaryNavigateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SecondaryTab is not null) await SecondaryTab.NavigateToAsync(SecondaryTab.AddressBarText);
+    }
+
+    private async void SecondaryAddressTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && SecondaryTab is not null)
+        {
+            await SecondaryTab.NavigateToAsync(SecondaryTab.AddressBarText);
+        }
+    }
+
+    private async void SecondaryDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (SecondaryDataGrid.SelectedItem is FileSystemItem selected && SecondaryTab is not null)
+        {
+            if (selected.IsDirectory)
+            {
+                await SecondaryTab.NavigateToAsync(selected.FullPath);
+            }
+            else
+            {
+                OpenQuickPreview(selected);
+            }
+        }
+    }
+
+    private async void CopyToSecondaryPaneButton_Click(object sender, RoutedEventArgs e)
+        => await TransferBetweenPanesAsync(fromPrimaryToSecondary: true, isMove: false);
+
+    private async void MoveToSecondaryPaneButton_Click(object sender, RoutedEventArgs e)
+        => await TransferBetweenPanesAsync(fromPrimaryToSecondary: true, isMove: true);
+
+    private async void CopyToPrimaryPaneButton_Click(object sender, RoutedEventArgs e)
+        => await TransferBetweenPanesAsync(fromPrimaryToSecondary: false, isMove: false);
+
+    private async void MoveToPrimaryPaneButton_Click(object sender, RoutedEventArgs e)
+        => await TransferBetweenPanesAsync(fromPrimaryToSecondary: false, isMove: true);
+
+    private async Task TransferBetweenPanesAsync(bool fromPrimaryToSecondary, bool isMove)
+    {
+        if (ActiveTab is null || SecondaryTab is null) return;
+
+        var srcTab = fromPrimaryToSecondary ? ActiveTab : SecondaryTab;
+        var dstTab = fromPrimaryToSecondary ? SecondaryTab : ActiveTab;
+        var srcGrid = fromPrimaryToSecondary ? ItemsDataGrid : SecondaryDataGrid;
+
+        if (!Directory.Exists(dstTab.CurrentPath))
+        {
+            MessageBox.Show($"転送先フォルダが存在しません:\n{dstTab.CurrentPath}", "エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var items = srcTab.DisplayedItems.Where(i => i.IsSelected).ToList();
+        if (items.Count == 0)
+        {
+            items = srcGrid.SelectedItems.OfType<FileSystemItem>().ToList();
+        }
+
+        if (items.Count == 0)
+        {
+            MessageBox.Show("転送したいファイルまたはフォルダを選択してください。", "デュアルペイン転送", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string actionName = isMove ? "移動" : "コピー";
+        int done = 0;
+        var errors = new List<string>();
+
+        await Task.Run(() =>
+        {
+            foreach (var item in items)
+            {
+                if (item.IsSystemProtected)
+                {
+                    errors.Add($"[システム保護] {item.Name}");
+                    continue;
+                }
+
+                try
+                {
+                    string destPath = Path.Combine(dstTab.CurrentPath, item.Name);
+                    if (string.Equals(item.FullPath, destPath, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (item.IsDirectory)
+                    {
+                        if (isMove)
+                            Directory.Move(item.FullPath, destPath);
+                        else
+                            CopyDirectoryRecursive(item.FullPath, destPath);
+                    }
+                    else
+                    {
+                        if (isMove)
+                            File.Move(item.FullPath, destPath, overwrite: true);
+                        else
+                            File.Copy(item.FullPath, destPath, overwrite: true);
+                    }
+
+                    _scannerService.InvalidatePathAndAncestors(item.FullPath);
+                    _scannerService.InvalidatePathAndAncestors(destPath);
+                    done++;
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{item.Name}: {ex.Message}");
+                }
+            }
+        });
+
+        if (srcTab.IsExplorerTab)
+            await srcTab.NavigateToAsync(srcTab.CurrentPath, false, true);
+        if (dstTab.IsExplorerTab)
+            await dstTab.NavigateToAsync(dstTab.CurrentPath, false, true);
+
+        ActiveTab.StatusText = $"✅ {done:N0} 件を {dstTab.CurrentPath} へ{actionName}しました。";
+        if (errors.Count > 0)
+        {
+            MessageBox.Show($"{done} 件の{actionName}が完了しましたが、一部エラーがありました:\n" + string.Join("\n", errors.Take(5)), "転送結果", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private static void CopyDirectoryRecursive(string sourceDir, string targetDir)
+    {
+        Directory.CreateDirectory(targetDir);
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            string dest = Path.Combine(targetDir, Path.GetFileName(file));
+            File.Copy(file, dest, overwrite: true);
+        }
+        foreach (var sub in Directory.GetDirectories(sourceDir))
+        {
+            var di = new DirectoryInfo(sub);
+            if ((di.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+            string destSub = Path.Combine(targetDir, di.Name);
+            CopyDirectoryRecursive(sub, destSub);
+        }
+    }
+
+    // ==================== ショートカットキー制御 ====================
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -167,7 +625,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (e.Key == Key.W && ActiveTab is not null)
             {
                 e.Handled = true;
-                await CloseTabAsync(ActiveTab);
+                await CloseTabAsync(ActiveTab, forceClosePinned: false);
                 return;
             }
         }
@@ -192,8 +650,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
         }
-        else if (Keyboard.Modifiers == ModifierKeys.None)
+        else if (Keyboard.Modifiers == ModifierKeys.None && Keyboard.FocusedElement is not TextBox)
         {
+            if (e.Key == Key.Space)
+            {
+                if (ItemsDataGrid.SelectedItem is FileSystemItem selected)
+                {
+                    e.Handled = true;
+                    OpenQuickPreview(selected);
+                    return;
+                }
+            }
+            if (e.Key == Key.F2)
+            {
+                e.Handled = true;
+                BatchRenameButton_Click(this, new RoutedEventArgs());
+                return;
+            }
             if (e.Key == Key.F5 && ActiveTab is not null)
             {
                 e.Handled = true;
@@ -203,7 +676,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     await ActiveTab.StartLargeScanAsync();
                 return;
             }
-            if (e.Key == Key.Delete && Keyboard.FocusedElement is not TextBox)
+            if (e.Key == Key.Delete)
             {
                 e.Handled = true;
                 DeleteSelectedItemsButton_Click(this, new RoutedEventArgs());
@@ -417,7 +890,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             else
             {
-                // スキャンタブでフォルダをダブルクリックした場合は新規タブでそのフォルダを開く
                 await OpenNewExplorerTabAsync(selected.FullPath);
             }
         }
@@ -425,7 +897,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (ActiveTab.IsScannerTab)
             {
-                // スキャンタブでファイルをダブルクリックした場合は、そのファイルがある親フォルダを新しいタブで開く
                 if (!string.IsNullOrEmpty(selected.ParentPath) && Directory.Exists(selected.ParentPath))
                 {
                     await OpenNewExplorerTabAsync(selected.ParentPath);
@@ -553,15 +1024,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    protected override void OnClosed(EventArgs e)
-    {
-        foreach (var tab in Tabs)
-        {
-            tab.Dispose();
-        }
-        base.OnClosed(e);
-    }
-
     // ==================== 一括選択 & 完全削除機能 ====================
 
     private void SelectAllJunkButton_Click(object sender, RoutedEventArgs e)
@@ -581,7 +1043,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var checkedItems = ActiveTab.DisplayedItems.Where(i => i.IsSelected).ToList();
         if (checkedItems.Count == 0)
         {
-            // チェックボックスが未選択の場合は、DataGrid上でハイライト選択されている行を対象にする
             checkedItems = ItemsDataGrid.SelectedItems.OfType<FileSystemItem>().ToList();
         }
 
@@ -627,11 +1088,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var report = await FileDeletionService.PermanentlyDeleteItemsAsync(deletable, _scannerService);
 
-        // 全タブから削除済み項目を反映
         foreach (var tab in Tabs)
         {
             tab.RemoveDeletedItemsFromView(report.CompletelyDeletedTopItems);
         }
+        SecondaryTab?.RemoveDeletedItemsFromView(report.CompletelyDeletedTopItems);
 
         RefreshDriveCards();
 
@@ -656,6 +1117,50 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         MessageBox.Show(message, "完全削除レポート", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    // ==================== セッション状態の自動保存 ====================
+
+    protected override void OnClosed(EventArgs e)
+    {
+        try
+        {
+            var state = new AppSessionState
+            {
+                ActiveTabIndex = ActiveTab is not null ? Math.Max(0, Tabs.IndexOf(ActiveTab)) : 0,
+                ShowVisualDashboard = _showVisualDashboard,
+                ShowDualPane = _showDualPane,
+                SecondaryPanePath = SecondaryTab?.CurrentPath ?? @"C:\",
+                Tabs = Tabs
+                    .OrderByDescending(t => t.IsPinned)
+                    .Select(t => new SavedTabInfo
+                    {
+                        Kind = t.Kind,
+                        Path = t.CurrentPath,
+                        IsPinned = t.IsPinned
+                    })
+                    .ToList(),
+                CustomBookmarks = QuickAccessItems
+                    .Where(q => q.Icon == "⭐")
+                    .Select(q => new SavedBookmarkInfo
+                    {
+                        Title = q.Title,
+                        TargetPath = q.TargetPath
+                    })
+                    .ToList()
+            };
+
+            SessionStateService.SaveSession(state);
+        }
+        catch { }
+
+        foreach (var tab in Tabs)
+        {
+            tab.Dispose();
+        }
+        SecondaryTab?.Dispose();
+
+        base.OnClosed(e);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
